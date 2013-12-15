@@ -10,6 +10,27 @@ int FTP::getc()
   return -1;
 }
 
+void FTP::close()
+{
+  delete ctrl;
+  ctrl = nullptr;
+  delete data;
+  data = nullptr;
+}
+
+void FTP::quit()
+{
+  require_connected();
+  send_receive("QUIT");
+  quit();
+}
+
+void FTP::exit()
+{
+  gv_destroy();
+  ::exit(0);
+}
+
 void FTP::send_receive(const char *fmt, ...)
 {
 }

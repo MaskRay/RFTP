@@ -4,6 +4,9 @@ class CMD {
 public:
   void require_connected();
   void require_logged_in();
+  void loop();
+  void execute(const char *line);
+  void prompt();
 
   C(cd);
   C(cdup);
@@ -14,3 +17,5 @@ public:
   C(rhelp);
   C(rmdir);
 };
+
+void exit_all();
