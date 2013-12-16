@@ -14,7 +14,6 @@ enum Code {C_NOT_IMPLEMENTED = 502};
 class FTP {
 public:
   FTP();
-  ~FTP();
 
   int chdir(const char *path);
   int cdup();

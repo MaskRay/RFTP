@@ -25,3 +25,5 @@
 using namespace std;
 
 typedef unsigned long long ull;
+
+void exit_all();
