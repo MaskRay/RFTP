@@ -1,6 +1,10 @@
 #include "ftp.hh"
+#include "signal.hh"
 
-FTP::FTP() : _ctrl(NULL), _data(NULL), _logged_in(false), _in_transfer(false), _interrupted(false)
+class FTP ftp;
+
+FTP::FTP() // : _ctrl(NULL), _data(NULL), _logged_in(false), _in_transfer(false), _interrupted(false),
+  //_reply_timeout(1000)
 {
 }
 
@@ -14,23 +18,19 @@ bool FTP::logged_in()
   return _logged_in;
 }
 
-void FTP::close()
+int FTP::close()
 {
   send_receive("QUIT");
-  quit();
-}
-
-void FTP::quit()
-{
-  delete _ctrl;
-  _ctrl = NULL;
-  delete _data;
-  _data = NULL;
-  _logged_in = false;
+  return 0;
 }
 
 void FTP::send_receive(const char *fmt, ...)
 {
+}
+
+int FTP::getc()
+{
+  return -1;
 }
 
 int FTP::gets()
@@ -68,102 +68,112 @@ int FTP::gets()
       break;
     default:
       if (i < MAX_REPLY-1)
-        reply[i++] = c;
+        _reply[i++] = c;
       break;
     }
   }
 
   if (i >= MAX_REPLY-1)
     err("Reply too long\n");
-  reply[i] = '\0';
-  _code = atoi(reply);
-  _code_family = code / 100;
+  _reply[i] = '\0';
+  _code = atoi(_reply);
+  _code_family = _code / 100;
   return _code;
+}
+
+void reply_alrm_handler(int)
+{
+}
+
+void FTP::print_reply()
+{
 }
 
 int FTP::read_reply()
 {
-  set_sigaction(SIGALRM, replay_alrm_handler);
-  alarm(ftp->reply_timeout);
-  clearerr(fin);
+  set_signal(SIGALRM, reply_alrm_handler);
+  alarm(_reply_timeout);
+  _ctrl->clearerr(false);
 
   int r = gets();
   if (r == -1) {
     alarm(0);
-    set_sigaction(SIGALRM, SIG_DFL);
+    set_signal(SIGALRM, SIG_DFL);
     err("read_reply failed\n");
     return -1;
   }
 
   print_reply();
-  if (reply[3] == '-') {
-    strncpy(tmp, reply, 3);
-    while (gets() != -1 && (print_reply(), strncmp(tmp, reply, 3)));
+  if (_reply[3] == '-') {
+    char tmp[3];
+    strncpy(tmp, _reply, 3);
+    while (gets() != -1 && (print_reply(), strncmp(tmp, _reply, 3)));
   }
   alarm(0);
-  set_sigaction(SIGALRM, SIG_DFL);
+  set_signal(SIGALRM, SIG_DFL);
   return r;
 }
 
-void FTP::chdir(const char *path)
+int FTP::chdir(const char *path)
 {
   send_receive("CMD %s", path);
   return _code_family == C_COMPLETION ? pwd(false) : -1;
 }
 
-void FTP::cdup()
+int FTP::cdup()
 {
   send_receive("CDUP");
   return _code_family == C_COMPLETION ? pwd(false) : -1;
 }
 
-void FTP::help(const char *cmd)
+int FTP::help(const char *cmd)
 {
   if (cmd)
     send_receive("HELP %s", cmd);
   else
     send_receive("HELP");
+  return _code_family == C_COMPLETION ? 0 : -1;
 }
 
-void FTP::mkdir(const char *path)
+int FTP::mkdir(const char *path)
 {
   send_receive("MKD %s", path);
   return _code_family == C_COMPLETION ? 0 : -1;
 }
 
-void FTP::help(const char *arg)
+int FTP::pwd(bool log)
 {
-  if (arg)
-    send_receive("HELP %s", path);
-  else
-    send_receive("HELP");
+  send_receive("PWD");
+  if (log)
+    print_reply();
+}
+
+void FTP::quit()
+{
+  delete _ctrl;
+  _ctrl = NULL;
+  delete _data;
+  _data = NULL;
+  _logged_in = false;
+}
+
+int FTP::rmdir(const char *path)
+{
+  send_receive("RMD %s", path);
   return _code_family == C_COMPLETION ? 0 : -1;
 }
 
-void FTP::pwd(bool log)
-{
-  send_receive("PWD");
-}
-
-void FTP::quit(int argc, char *argv[])
-{
-}
-
-void FTP::rmdir(const char *path)
-{
-}
-
-ull FTP::size(path)
+ull FTP::size(const char *path)
 {
   send_receive("SIZE %s", path);
-  if (code == C_NOT_IMPLEMENTED) {
-    has_size_cmd = false;
+  if (_code == C_NOT_IMPLEMENTED) {
+    _has_size_cmd = false;
     return -1;
   }
-  if (code != C_COMPLETION)
+  if (_code != C_COMPLETION)
     return -1;
 
   ull res;
-  sscanf(reply, "%*s %llu", &res);
+  sscanf(_reply, "%*s %llu", &res);
   return res;
 }

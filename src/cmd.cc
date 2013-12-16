@@ -36,12 +36,12 @@ void CMD::max_args(const vector<string> &args, size_t num)
 void CMD::execute(char *line)
 {
   vector<string> args(Util::split(line));
-  ftp._interrupted = false;
+  gv_interrupted = false;
 
   function<void(vector<string>)> c;
   c(args);
 
-  ftp._in_transfer = false;
+  gv_in_transfer = false;
 }
 
 void CMD::loop()
@@ -105,7 +105,7 @@ void CMD::pwd(vector<string> args)
   max_args(args, 0);
   require_connected();
   require_logged_in();
-  ftp.pwd();
+  ftp.pwd(true);
 }
 
 void CMD::quit(vector<string> args)

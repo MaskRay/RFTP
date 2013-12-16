@@ -1,4 +1,6 @@
 #include "signal.hh"
+#include "log.hh"
+#include "gv.hh"
 
 static int nsigints = 0;
 
@@ -24,17 +26,17 @@ void set_signal_with_mask(int signum, sighandler_t handler, int block)
     sigaddset(&sa.sa_mask, block);
   sa.sa_flags = SA_RESTART;
   if (sigaction(signum, &sa, nullptr))
-    err(__func__" failed\n");
+    err(__func__);
 }
 
-void sigint_handler()
+void sigint_handler(int)
 {
   nsigints++;
   gv_interrupted = true;
   if (nsigints >= 3) {
     nsigints = 0;
     alarm(0);
-    if (gv_jmpbuf)
+    if (gv_jmpbuf_set)
       siglongjmp(gv_jmpbuf, 1);
     else
       exit(EINTR);
@@ -52,7 +54,7 @@ void sighup_handler()
     err("SIGHUP received, transfer continuing\n");
   else {
     err("SIGHUP received, exiting\n");
-    exit_all();
+    exit(1);
   }
 }
 
