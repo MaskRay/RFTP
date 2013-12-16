@@ -20,12 +20,15 @@ bool FTP::logged_in()
 int FTP::close()
 {
   send_receive("QUIT");
+  free(home_dir);
+  free(cur_dir);
+  free(prev_dir);
   return 0;
 }
 
 int FTP::send_receive(const char *fmt, ...)
 {
-  if (! (_ctrl && _ctrl->connected())) {
+  if (! (_ctrl && _ctrl->_connected)) {
     err("No control connection\n");
     return -1;
   }
@@ -34,8 +37,17 @@ int FTP::send_receive(const char *fmt, ...)
   va_start(ap, fmt);
   _ctrl->vprintf(fmt, ap);
   va_end(ap);
+  _ctrl->printf("\r\n", ap);
+  _ctrl->flush();
+
+  if (_ctrl->error(true)) {
+    err("Error to send command\n");
+    _code = _code_family = -1;
+    return -1;
+  }
 
   read_reply();
+  print_reply(INFO);
   return _code;
 }
 
@@ -97,6 +109,11 @@ void reply_alrm_handler(int)
 {
 }
 
+void FTP::print_reply(LogLevel level)
+{
+  print(level, "> %s\n", _reply);
+}
+
 void FTP::print_reply()
 {
   log("> %s\n", _reply);
@@ -125,6 +142,43 @@ int FTP::read_reply()
   alarm(0);
   set_signal(SIGALRM, SIG_DFL);
   return r;
+}
+
+char *FTP::get_cwd()
+{
+  send_receive("PWD");
+  if (_code_family == C_COMPLETION) {
+    char *beg = strchr(_reply, '"');
+    if (! beg)
+      return NULL;
+    beg++;
+    char *end = strchr(beg, '"');
+    if (! end)
+      return NULL;
+    char *ret = malloc(end - beg + 1);
+    strncpy(ret, beg, end-beg);
+    ret[end-beg] = '\0';
+    return ret;
+  }
+  return NULL;
+}
+
+int FTP::login()
+{
+  char *user = prompt("Login (anonymous): ");
+  send_receive("USER %s", user);
+  free(user);
+  if (_code_family == C_PRELIMINARY) {
+    char *pass = getpass("Password: ");
+    send_receive("PASS %s", pass);
+  }
+
+  if (_code_family == C_COMPLETION) {
+    _logged_in = true;
+    home_dir = get_cwd();
+    cur_dir = strdup(home_dir);
+    prev_dir = strdup(home_dir);
+  }
 }
 
 int FTP::chdir(const char *path)
@@ -173,8 +227,10 @@ int FTP::open(const char *uri)
     read_reply();
   _connected = _code == 220;
   if (_connected) {
+    return 0;
   } else {
     close();
+    return -1;
   }
 }
 

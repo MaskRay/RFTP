@@ -12,6 +12,7 @@ public:
   void loop();
   void execute(char *line);
   char *prompt();
+  char *prompt(const char *fmt, ...);
 
   CC(cdup);
   CC(chdir);
@@ -49,6 +50,7 @@ public:
   };
 
 protected:
+  void login();
   void min_args(const vector<string> &args, size_t num);
   void max_args(const vector<string> &args, size_t num);
   void require_logged_in();

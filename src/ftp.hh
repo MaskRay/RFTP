@@ -26,6 +26,7 @@ public:
   ull size(const char *path);
 
   void quit();
+  void login();
 
   bool connected();
   bool logged_in();
@@ -36,8 +37,12 @@ protected:
   int send_receive(const char *fmt, ...);
   int fgetc();
   int gets();
+  char *get_cwd();
   int read_reply();
   void print_reply();
+  void print_reply(LogLevel level);
+
+  char *home_dir = NULL, *cur_dir = NULL, *prev_dir = NULL;
 
   bool _logged_in = false;
   int _code = 0, _code_family = 0;

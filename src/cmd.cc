@@ -7,16 +7,32 @@ char *CMD::prompt()
   return readline(ftp.connected() ? (ftp.logged_in() ? gv_PS3 : gv_PS2) : gv_PS1);
 }
 
+char *CMD::prompt(const char *fmt, ...)
+{
+  va_list ap;
+  va_start(ap, fmt);
+  char *p;
+  vasprintf(&p, fmt, ap);
+  char *r = readline(p);
+  free(p);
+  va_end(ap);
+  return r;
+}
+
 void CMD::require_logged_in()
 {
-  if (! ftp.logged_in())
+  if (! ftp.logged_in()) {
+    err("Not logged in\n");
     throw 0;
+  }
 }
 
 void CMD::require_connected()
 {
-  if (! ftp.connected())
+  if (! ftp.connected()) {
+    err("Not connected\n");
     throw 0;
+  }
 }
 
 void CMD::min_args(const vector<string> &args, size_t num)
@@ -125,6 +141,11 @@ void CMD::mkdir(vector<string> args)
 void CMD::help(vector<string> args)
 {
   max_args(args, 0);
+}
+
+void CMD::login()
+{
+  ftp.login();
 }
 
 void CMD::open(vector<string> args)

@@ -1,17 +1,3 @@
-#include "common.hh"
+#include "log.hh"
 
-void err(const char *fmt, ...)
-{
-  va_list va;
-  va_start(va, fmt);
-  vfprintf(stderr, fmt, va);
-  va_end(va);
-}
-
-void log(const char *fmt, ...)
-{
-  va_list va;
-  va_start(va, fmt);
-  vfprintf(stderr, fmt, va);
-  va_end(va);
-}
+LogLevel gv_log_level;
