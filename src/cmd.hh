@@ -1,21 +1,34 @@
-#define C(name) void name(int argc, char **argv)
+#pragma once
+#include "common.hh"
+#include "ftp.hh"
+#include "log.hh"
+#include "util.hh"
+#include "gv.hh"
+
+#define C(name) void name(vector<string> args)
 
 class CMD {
 public:
-  void require_connected();
-  void require_logged_in();
   void loop();
   void execute(const char *line);
-  void prompt();
+  char *prompt();
 
-  C(cd);
   C(cdup);
+  C(chdir);
   C(help);
   C(mkdir);
   C(pwd);
   C(quit);
   C(rhelp);
   C(rmdir);
+
+protected:
+  void min_args(const vector<string> &args, size_t num);
+  void max_args(const vector<string> &args, size_t num);
+  void require_logged_in();
+  void require_connected();
+
+  FTP ftp;
 };
 
 void exit_all();

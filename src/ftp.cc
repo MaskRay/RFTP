@@ -1,8 +1,17 @@
 #include "ftp.hh"
 
+FTP::FTP() : _ctrl(NULL), _data(NULL), _logged_in(false), _in_transfer(false), _interrupted(false)
+{
+}
+
 bool FTP::connected()
 {
-  return true;
+  return ctrl && ctrl->connected;
+}
+
+bool FTP::logged_in()
+{
+  return _logged_in;
 }
 
 int FTP::getc()
@@ -13,14 +22,14 @@ int FTP::getc()
 void FTP::close()
 {
   delete ctrl;
-  ctrl = nullptr;
+  ctrl = NULL;
   delete data;
-  data = nullptr;
+  data = NULL;
+  logged_in = false;
 }
 
 void FTP::quit()
 {
-  require_connected();
   send_receive("QUIT");
   quit();
 }
@@ -148,10 +157,8 @@ void FTP::quit(int argc, char *argv[])
 {
 }
 
-void FTP::rmdir(int argc, char *argv[])
+void FTP::rmdir(const char *path)
 {
-  require_connected();
-  require_logged_in();
 }
 
 ull FTP::size(path)

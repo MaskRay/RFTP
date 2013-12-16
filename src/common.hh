@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include <string.h>
+#include <setjmp.h>
 
 #include <fnmatch.h>
 #include <getopt.h>
@@ -17,5 +18,10 @@
 #include <netdb.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
+
+#include <functional>
+#include <string>
+#include <vector>
+using namespace std;
 
 typedef unsigned long long ull;

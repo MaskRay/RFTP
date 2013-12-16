@@ -1,6 +1,7 @@
 #include <getopt.h>
 #include <stdio.h>
 #include <unistd.h>
+#include "cmd.hh"
 
 void command_loop()
 {
@@ -17,11 +18,20 @@ int main(int argc, char *argv[])
 
   int c;
   while ((c = getopt_long(argc, argv, "hqv", longopts, NULL)) != -1) {
+    switch (c) {
+    case 'h':
+      break;
+    case 'q':
+      break;
+    case 'v':
+      break;
+    }
   }
 
   for (; optind < argc; optind++) {
   }
 
-  command_loop();
+  CMD cmd;
+  cmd.loop();
   return 0;
 }

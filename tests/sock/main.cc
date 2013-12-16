@@ -20,8 +20,6 @@ int server()
 
 int main()
 {
-  return server();
-
   struct sockaddr_in sa;
   memset(&sa, 0, sizeof sa);
   sa.sin_family = AF_INET;
