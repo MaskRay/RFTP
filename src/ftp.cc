@@ -1,5 +1,6 @@
 #include "ftp.hh"
 #include "signal.hh"
+#include "host.hh"
 
 FTP::FTP() // : _ctrl(NULL), _data(NULL), _logged_in(false), _in_transfer(false), _interrupted(false),
   //_reply_timeout(1000)
@@ -137,6 +138,25 @@ int FTP::mkdir(const char *path)
 {
   send_receive("MKD %s", path);
   return _code_family == C_COMPLETION ? 0 : -1;
+}
+
+int FTP::open(const char *uri)
+{
+  if (connected())
+    close();
+  _ctrl = new Sock;
+  Host host(uri);
+
+  if (! _ctrl->connect(host._addr->ai_addr, host._addr->ai_addrlen))
+    return 1;
+  read_reply();
+  if (_code == 120)
+    read_reply();
+  _connected = _code == 220;
+  if (_connected) {
+  } else {
+    close();
+  }
 }
 
 int FTP::pwd(bool log)

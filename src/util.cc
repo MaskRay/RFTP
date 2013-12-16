@@ -14,9 +14,11 @@ vector<string> split(char *s)
 {
   char *t;
   vector<string> ret;
-  for (; *s; s = t) {
-    strsep(&t, " \t\0");
-    ret.push_back(string(s, t - s));
+  for (; ; s = NULL) {
+    t = strtok(s, " \t");
+    if (! t) break;
+    ret.push_back(t);
   }
+  return ret;
 }
 };

@@ -3,3 +3,4 @@ tags
 main
 *.o
 *.d
+G*

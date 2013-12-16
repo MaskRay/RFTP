@@ -19,6 +19,7 @@ public:
   int cdup();
   int help(const char *cmd);
   int mkdir(const char *path);
+  int open(const char *host);
   int pwd(bool log);
   int close();
   int rmdir(const char *path);
@@ -28,6 +29,8 @@ public:
 
   bool connected();
   bool logged_in();
+
+  bool _connected = false;
 
 protected:
   void send_receive(const char *fmt, ...);

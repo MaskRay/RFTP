@@ -1,5 +1,7 @@
 #include "cmd.hh"
 
+const CMD::Command *CMD_AMBIGUOUS = (CMD::Command *)-1;
+
 char *CMD::prompt()
 {
   return readline(ftp.connected() ? (ftp.logged_in() ? gv_PS3 : gv_PS2) : gv_PS1);
@@ -33,14 +35,40 @@ void CMD::max_args(const vector<string> &args, size_t num)
   }
 }
 
+const CMD::Command *CMD::find_cmd(const char *cmd)
+{
+  size_t len = strlen(cmd);
+  Command *r = NULL;
+  for (int i = 0; cmds[i].name; i++)
+    if (! strncmp(cmds[i].name, cmd, len)) {
+      if (strlen(cmds[i].name) == len)
+        return &cmds[i];
+      if (r)
+        return CMD_AMBIGUOUS;
+      r = &cmds[i];
+    }
+  return r;
+}
+
 void CMD::execute(char *line)
 {
   vector<string> args(Util::split(line));
   gv_interrupted = false;
 
-  function<void(vector<string>)> c;
-  c(args);
+  auto cmd = find_cmd(args[0].c_str());
+  if (cmd == NULL)
+    err("Unknown command %s\n", args[0].c_str());
+  else if (cmd == CMD_AMBIGUOUS)
+    err("Ambiguous command %s\n", args[0].c_str());
+  else {
+    args.erase(args.begin());
+    try {
+      (this->*(cmd->fn))(args);
+    } catch (...) {
+    }
+  }
 
+  gv_interrupted = false;
   gv_in_transfer = false;
 }
 
@@ -97,6 +125,14 @@ void CMD::mkdir(vector<string> args)
 void CMD::help(vector<string> args)
 {
   max_args(args, 0);
+}
+
+void CMD::open(vector<string> args)
+{
+  min_args(args, 1);
+  max_args(args, 1);
+
+  ftp.open(args[0].c_str());
 }
 
 void CMD::pwd(vector<string> args)
