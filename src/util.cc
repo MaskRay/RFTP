@@ -21,4 +21,16 @@ vector<string> split(char *s)
   }
   return ret;
 }
+
+char *prompt(const char *fmt, ...)
+{
+  va_list ap;
+  va_start(ap, fmt);
+  char *p;
+  vasprintf(&p, fmt, ap);
+  char *r = readline(p);
+  free(p);
+  va_end(ap);
+  return r;
+}
 };

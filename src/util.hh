@@ -4,4 +4,6 @@
 namespace Util {
 void trim(char *s);
 vector<string> split(char *s);
+char *prompt();
+char *prompt(const char *fmt, ...);
 };

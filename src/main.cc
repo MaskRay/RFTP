@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include "cmd.hh"
+#include "log.hh"
 
 void command_loop()
 {
@@ -30,6 +31,8 @@ int main(int argc, char *argv[])
 
   for (; optind < argc; optind++) {
   }
+
+  gv_log_level = DEBUG;
 
   CMD cmd;
   cmd.loop();

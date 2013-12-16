@@ -1,6 +1,7 @@
 #include "ftp.hh"
 #include "signal.hh"
 #include "host.hh"
+#include "util.hh"
 
 FTP::FTP() // : _ctrl(NULL), _data(NULL), _logged_in(false), _in_transfer(false), _interrupted(false),
   //_reply_timeout(1000)
@@ -47,7 +48,6 @@ int FTP::send_receive(const char *fmt, ...)
   }
 
   read_reply();
-  print_reply(INFO);
   return _code;
 }
 
@@ -87,6 +87,10 @@ int FTP::gets()
       }
       continue;
     case '\r':
+      brk = true;
+      if (fgetc() != '\n')
+        err("Erroneous line break returned by server\n");
+      break;
     case '\n':
       brk = true;
       break;
@@ -133,7 +137,7 @@ int FTP::read_reply()
     return -1;
   }
 
-  print_reply();
+  print_reply(INFO);
   if (_reply[3] == '-') {
     char tmp[3];
     strncpy(tmp, _reply, 3);
@@ -155,7 +159,7 @@ char *FTP::get_cwd()
     char *end = strchr(beg, '"');
     if (! end)
       return NULL;
-    char *ret = malloc(end - beg + 1);
+    char *ret = (char *)malloc(end - beg + 1);
     strncpy(ret, beg, end-beg);
     ret[end-beg] = '\0';
     return ret;
@@ -163,12 +167,58 @@ char *FTP::get_cwd()
   return NULL;
 }
 
+void FTP::set_cur_dir(const char *path)
+{
+  free(prev_dir);
+  prev_dir = cur_dir;
+  cur_dir = strdup(path);
+}
+
+const char *FTP::get_reply_text()
+{
+  const char *r = _reply;
+  int i = 0;
+  for (; i < 4 && *r; i++, r++);
+  return r;
+}
+
+int FTP::init_data()
+{
+  _data = _ctrl->dup();
+  bool ipv6 = _data->_remote_addr.ss_family != AF_INET;
+
+  if (passive()) {
+    unsigned char addr_port[6];
+    unsigned short ipv6_port;
+    if (! pasv(ipv6, addr_port, &ipv6_port)) {
+      delete _data;
+      _data = NULL;
+      return -1;
+    }
+
+    struct sockaddr_storage sa;
+    memset(&sa, 0, sizeof sa);
+    if (ipv6) {
+      memcpy(&((struct sockaddr_in6 *)&sa)->sin6_addr, &_ctrl->_remote_addr, sizeof _ctrl->_remote_addr);
+      ((struct sockaddr_in6 *)&sa)->sin6_port = htons(ipv6_port);
+    } else {
+      memcpy(&((struct sockaddr_in *)&sa)->sin_addr, addr_port, 4);
+      memcpy(&((struct sockaddr_in *)&sa)->sin_port, addr_port + 4, 2);
+    }
+  }
+
+  return 0;
+}
+
 int FTP::login()
 {
-  char *user = prompt("Login (anonymous): ");
+  // TODO
+  char *user = Util::prompt("Login (anonymous): ");
   send_receive("USER %s", user);
   free(user);
-  if (_code_family == C_PRELIMINARY) {
+
+  if (_code_family == C_INTERMEDIATE) {
+    print_reply();
     char *pass = getpass("Password: ");
     send_receive("PASS %s", pass);
   }
@@ -178,13 +228,20 @@ int FTP::login()
     home_dir = get_cwd();
     cur_dir = strdup(home_dir);
     prev_dir = strdup(home_dir);
+    return 0;
   }
+
+  return -1;
 }
 
 int FTP::chdir(const char *path)
 {
-  send_receive("CMD %s", path);
-  return _code_family == C_COMPLETION ? pwd(false) : -1;
+  send_receive("CWD %s", path);
+  if (_code_family == C_COMPLETION) {
+    set_cur_dir(get_cwd());
+    return 0;
+  }
+  return -1;
 }
 
 int FTP::cdup()
@@ -199,6 +256,53 @@ int FTP::help(const char *cmd)
     send_receive("HELP %s", cmd);
   else
     send_receive("HELP");
+  return _code_family == C_COMPLETION ? 0 : -1;
+}
+
+int FTP::recv_ascii(FILE *fout)
+{
+  bool brk = false;
+  int saved = -2;
+  while (! brk) {
+    int c = saved == -2 ? fgetc() : saved;
+    saved = -2;
+    switch (c) {
+    case EOF:
+      brk = true;
+      break;
+    default:
+      fputc(c, fout);
+    }
+  }
+  return 0;
+}
+
+int FTP::lsdir(const char *cmd, const char *path, FILE *fout)
+{
+  if (init_data()) {
+    err("data connection failed\n");
+    return -1;
+  }
+
+  if (path)
+    send_receive("%s %s", cmd, path);
+  else
+    send_receive("%s", cmd);
+  if (_code_family != C_PRELIMINARY)
+    return -1;
+
+  if (_data->accept(passive())) {
+    err("accept failed\n");
+    return -1;
+  }
+
+  if (recv_ascii(fout))
+    return -1;
+
+  delete _data;
+  _data = NULL;
+
+  read_reply();
   return _code_family == C_COMPLETION ? 0 : -1;
 }
 
@@ -232,6 +336,31 @@ int FTP::open(const char *uri)
     close();
     return -1;
   }
+}
+
+bool FTP::pasv(bool ipv6, unsigned char *res, unsigned short *ipv6_port)
+{
+  if (! _has_pasv_cmd) {
+    err("Passive mode not supported\n");
+    return -1;
+  }
+
+  send_receive(ipv6 ? "EPSV" : "PASV");
+  if (_code != C_COMPLETION) {
+    _has_pasv_cmd = false;
+    return false;
+  }
+
+  const char *t = get_reply_text();
+  for (; *t && ! isdigit(*t); t++);
+  if (ipv6) {
+    if (sscanf(t, "%hu", &ipv6_port) != 1)
+      return false;
+  } else {
+    if (sscanf(t, "%hhu,%hhu,%hhu,%hhu,%hhu,%hhu", &res[0], &res[1], &res[2], &res[3], &res[4], &res[5]) != 1)
+      return false;
+  }
+  return true;
 }
 
 int FTP::pwd(bool log)

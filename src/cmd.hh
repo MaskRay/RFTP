@@ -12,12 +12,12 @@ public:
   void loop();
   void execute(char *line);
   char *prompt();
-  char *prompt(const char *fmt, ...);
 
   CC(cdup);
   CC(chdir);
   CC(close);
   CC(help);
+  CC(login);
   CC(mkdir);
   CC(open);
   CC(pwd);
@@ -32,12 +32,13 @@ public:
 
 #define CM(name, fn) {#name, &CMD::fn}
 #define CN(name) CM(name, name)
-  Command cmds[14] = {
+  Command cmds[15] = {
     CM(cd, chdir),
     CN(cdup),
     CM(connect, open),
     CN(close),
     CN(help),
+    CN(login),
     CM(md, mkdir),
     CN(mkdir),
     CN(open),
@@ -50,7 +51,6 @@ public:
   };
 
 protected:
-  void login();
   void min_args(const vector<string> &args, size_t num);
   void max_args(const vector<string> &args, size_t num);
   void require_logged_in();
@@ -61,3 +61,6 @@ protected:
 };
 
 void exit_all();
+
+#undef CC
+#undef CM

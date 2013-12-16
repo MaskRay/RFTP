@@ -24,8 +24,8 @@ bool Sock::connect(const struct sockaddr *sa, socklen_t len)
     return false;
   }
 
-  socklen_t local_len = sizeof local_addr;
-  if (getsockname(_handle, (struct sockaddr *)&local_addr, &local_len) == -1) {
+  socklen_t local_len = sizeof _local_addr;
+  if (getsockname(_handle, (struct sockaddr *)&_local_addr, &local_len) == -1) {
     perror(__func__);
     close(_handle);
     _handle = -1;
@@ -47,7 +47,7 @@ bool Sock::create_streams(const char *in_mode, const char *out_mode)
   if (_handle == -1 || fin || fout)
     return false;
 
-  int t = dup(_handle);
+  int t = ::dup(_handle);
   if (t == -1)
     return false;
   fin = fdopen(t, in_mode);
@@ -56,7 +56,7 @@ bool Sock::create_streams(const char *in_mode, const char *out_mode)
     return false;
   }
 
-  t = dup(_handle);
+  t = ::dup(_handle);
   if (t == -1)
     return false;
   fout = fdopen(t, out_mode);
@@ -79,16 +79,27 @@ void Sock::destroy_streams()
   fin = fout = NULL;
 }
 
-bool Sock::accept()
+Sock *Sock::dup()
 {
-  struct sockaddr_storage sa;
-  socklen_t l = sizeof sa;
-  int r = ::accept(_handle, (struct sockaddr *)&sa, &l);
-  close(_handle);
-  _handle = r;
-  if (r == -1) {
-    perror(__func__);
-    return false;
+  Sock *s = new Sock;
+  memcpy(&s->_local_addr, &_local_addr, sizeof _local_addr);
+  memcpy(&s->_remote_addr, &_remote_addr, sizeof _remote_addr);
+  return s;
+}
+
+bool Sock::accept(bool passive)
+{
+  if (! passive) {
+    struct sockaddr_storage sa;
+    socklen_t l = sizeof sa;
+    int r = ::accept(_handle, (struct sockaddr *)&sa, &l);
+    close(_handle);
+    _handle = r;
+    if (r == -1) {
+      perror(__func__);
+      return false;
+    }
+    memcpy(&_local_addr, &sa, sizeof sa);
   }
 
   if (! create_streams("r", "w")) {

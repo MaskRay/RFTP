@@ -18,15 +18,17 @@ public:
   int chdir(const char *path);
   int cdup();
   int help(const char *cmd);
+  int lsdir(const char *cmd, const char *path, FILE *fout);
   int mkdir(const char *path);
   int open(const char *host);
+  bool pasv(bool ipv6, unsigned char *res, unsigned short *ipv6_port);
   int pwd(bool log);
   int close();
   int rmdir(const char *path);
   ull size(const char *path);
 
   void quit();
-  void login();
+  int login();
 
   bool connected();
   bool logged_in();
@@ -34,10 +36,15 @@ public:
   bool _connected = false;
 
 protected:
+  int recv_ascii(FILE *fout);
+  int init_data();
+  bool passive() { return true; } // TODO
+  const char *get_reply_text();
   int send_receive(const char *fmt, ...);
   int fgetc();
   int gets();
   char *get_cwd();
+  void set_cur_dir(const char *path);
   int read_reply();
   void print_reply();
   void print_reply(LogLevel level);
@@ -50,6 +57,7 @@ protected:
   Sock *_ctrl = NULL, *_data = NULL;
 
   bool _has_size_cmd = true;
+  bool _has_pasv_cmd = true;
 
   char _reply[MAX_REPLY];
 };
