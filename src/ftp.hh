@@ -33,8 +33,8 @@ public:
   bool _connected = false;
 
 protected:
-  void send_receive(const char *fmt, ...);
-  int getc();
+  int send_receive(const char *fmt, ...);
+  int fgetc();
   int gets();
   int read_reply();
   void print_reply();

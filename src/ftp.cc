@@ -23,13 +23,25 @@ int FTP::close()
   return 0;
 }
 
-void FTP::send_receive(const char *fmt, ...)
+int FTP::send_receive(const char *fmt, ...)
 {
+  if (! (_ctrl && _ctrl->connected())) {
+    err("No control connection\n");
+    return -1;
+  }
+
+  va_list ap;
+  va_start(ap, fmt);
+  _ctrl->vprintf(fmt, ap);
+  va_end(ap);
+
+  read_reply();
+  return _code;
 }
 
-int FTP::getc()
+int FTP::fgetc()
 {
-  return -1;
+  return _ctrl->fgetc();
 }
 
 int FTP::gets()
@@ -42,14 +54,15 @@ int FTP::gets()
   bool brk = false;
   int i = 0, saved = -2;
   while (! brk) {
-    int c = saved == -2 ? getc() : saved;
+    int c = saved == -2 ? fgetc() : saved;
     saved = -2;
     switch (c) {
     case EOF:
       err("Server has closed control connection\n");
+      brk = true;
       break;
     case 255:
-      switch (saved = getc()) {
+      switch (saved = fgetc()) {
       case 251: // WILL
           break;
       case 252: // WONT
@@ -86,6 +99,7 @@ void reply_alrm_handler(int)
 
 void FTP::print_reply()
 {
+  log("> %s\n", _reply);
 }
 
 int FTP::read_reply()
@@ -145,7 +159,12 @@ int FTP::open(const char *uri)
   if (connected())
     close();
   _ctrl = new Sock;
+
   Host host(uri);
+  if (! host.lookup()) {
+    err("Failed to lookup %s\n", uri);
+    return 1;
+  }
 
   if (! _ctrl->connect(host._addr->ai_addr, host._addr->ai_addrlen))
     return 1;

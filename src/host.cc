@@ -18,7 +18,7 @@ bool Host::lookup()
   char *service = NULL;
   if (_port == -1) {
     _port = 21;
-    service = strdup("ftp");
+    service = strdup("21");
   } else
     asprintf(&service, "%d", ntohs(_port));
 
@@ -28,6 +28,7 @@ bool Host::lookup()
   hints.ai_socktype = SOCK_STREAM;
   hints.ai_protocol = IPPROTO_TCP;
   hints.ai_flags = AI_ADDRCONFIG | AI_CANONNAME | AI_V4MAPPED;
+  hints.ai_flags |= AI_NUMERICSERV;
 
   int r = getaddrinfo(_hostname, service, &hints, &_addr);
   free(service);
