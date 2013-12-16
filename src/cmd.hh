@@ -5,22 +5,23 @@
 #include "util.hh"
 #include "gv.hh"
 
-#define C(name) void name(vector<string> args)
+#define CC(name) void name(vector<string> args)
 
 class CMD {
 public:
   void loop();
-  void execute(const char *line);
+  void execute(char *line);
   char *prompt();
 
-  C(cdup);
-  C(chdir);
-  C(help);
-  C(mkdir);
-  C(pwd);
-  C(quit);
-  C(rhelp);
-  C(rmdir);
+  CC(cdup);
+  CC(chdir);
+  CC(close);
+  CC(help);
+  CC(mkdir);
+  CC(pwd);
+  CC(quit);
+  CC(rhelp);
+  CC(rmdir);
 
 protected:
   void min_args(const vector<string> &args, size_t num);

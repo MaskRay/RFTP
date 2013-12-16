@@ -1,4 +1,3 @@
-#include <readline/readline.h>
 #include "cmd.hh"
 
 char *CMD::prompt()
@@ -34,7 +33,7 @@ void CMD::max_args(const vector<string> &args, size_t num)
   }
 }
 
-void CMD::execute(const char *line)
+void CMD::execute(char *line)
 {
   vector<string> args(Util::split(line));
   ftp._interrupted = false;
@@ -64,19 +63,26 @@ void CMD::loop()
   exit_all();
 }
 
+void CMD::cdup(vector<string> args)
+{
+  max_args(args, 0);
+  require_connected();
+  require_logged_in();
+}
+
 void CMD::chdir(vector<string> args)
 {
   min_args(args, 1);
   max_args(args, 1);
   require_connected();
   require_logged_in();
-  ftp.chdir(args[0].to_c());
+  ftp.chdir(args[0].c_str());
 }
 
-void CMD::cdup(vector<string>)
+void CMD::close(vector<string> args)
 {
+  max_args(args, 0);
   require_connected();
-  require_logged_in();
 }
 
 void CMD::mkdir(vector<string> args)
@@ -85,11 +91,12 @@ void CMD::mkdir(vector<string> args)
   max_args(args, 1);
   require_connected();
   require_logged_in();
-  ftp.mkdir(args[0].to_c());
+  ftp.mkdir(args[0].c_str());
 }
 
 void CMD::help(vector<string> args)
 {
+  max_args(args, 0);
 }
 
 void CMD::pwd(vector<string> args)
@@ -103,16 +110,22 @@ void CMD::pwd(vector<string> args)
 
 void CMD::quit(vector<string> args)
 {
+  max_args(args, 0);
 }
 
 void CMD::rhelp(vector<string> args)
 {
+  max_args(args, 1);
   require_connected();
   require_logged_in();
+  ftp.help(args.empty() ? NULL : args[0].c_str());
 }
 
 void CMD::rmdir(vector<string> args)
 {
+  min_args(args, 1);
+  max_args(args, 1);
   require_connected();
   require_logged_in();
+  ftp.rmdir(args[0].c_str());
 }

@@ -1,11 +1,12 @@
 #include "gv.hh"
 
 bool gv_interrupted;
-const char *gv_PS1 = strdup("ftp> ");
-const char *gv_PS2 = strdup(gv_PS1);
-const char *gv_PS3 = strdup(gv_PS1);
+char *gv_PS1 = strdup("ftp> ");
+char *gv_PS2 = strdup(gv_PS1);
+char *gv_PS3 = strdup(gv_PS1);
 
 class SingletonCleaner {
+public:
   ~SingletonCleaner() {
     free(gv_PS1);
     gv_PS1 = nullptr;

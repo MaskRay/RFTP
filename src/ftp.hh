@@ -13,14 +13,15 @@ public:
   FTP();
   ~FTP();
 
-  void send_receive(const char *fmt, ...);
   void chdir(const char *path);
   void cdup();
-  void help();
+  void help(const char *cmd);
   void mkdir(const char *path);
   void pwd();
-  void quit();
+  void close();
   void rmdir(const char *path);
+
+  void quit();
 
   bool connected();
   bool logged_in();
@@ -29,6 +30,10 @@ public:
   bool _interrupted;
 
 protected:
+  void send_receive(const char *fmt, ...);
+  void gets();
+  int read_reply();
+
   bool _logged_in;
   int _code_family;
   Sock *_ctrl, *_data;

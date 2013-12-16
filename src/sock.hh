@@ -21,8 +21,9 @@ public:
   void clearerr(bool inout);
   int error(bool inout);
   int eof();
-protected:
+
   bool _connected;
+protected:
   int _handle;
   FILE *fin, *fout;
   struct sockaddr_storage local_addr;

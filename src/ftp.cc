@@ -6,7 +6,7 @@ FTP::FTP() : _ctrl(NULL), _data(NULL), _logged_in(false), _in_transfer(false), _
 
 bool FTP::connected()
 {
-  return ctrl && ctrl->connected;
+  return _ctrl && _ctrl->_connected;
 }
 
 bool FTP::logged_in()
@@ -14,30 +14,19 @@ bool FTP::logged_in()
   return _logged_in;
 }
 
-int FTP::getc()
-{
-  return -1;
-}
-
 void FTP::close()
-{
-  delete ctrl;
-  ctrl = NULL;
-  delete data;
-  data = NULL;
-  logged_in = false;
-}
-
-void FTP::quit()
 {
   send_receive("QUIT");
   quit();
 }
 
-void FTP::exit()
+void FTP::quit()
 {
-  gv_destroy();
-  ::exit(0);
+  delete _ctrl;
+  _ctrl = NULL;
+  delete _data;
+  _data = NULL;
+  _logged_in = false;
 }
 
 void FTP::send_receive(const char *fmt, ...)
@@ -87,15 +76,9 @@ int FTP::gets()
   if (i >= MAX_REPLY-1)
     err("Reply too long\n");
   reply[i] = '\0';
-  code = atoi(reply);
-  code_family = code / 100;
-  return code;
-}
-
-void FTP::clearerr(FILE *stream)
-{
-  if (sock && sock->stream)
-      ::clearerr(sock->stream);
+  _code = atoi(reply);
+  _code_family = code / 100;
+  return _code;
 }
 
 int FTP::read_reply()
@@ -124,19 +107,28 @@ int FTP::read_reply()
 
 void FTP::chdir(const char *path)
 {
-
+  send_receive("CMD %s", path);
+  return _code_family == C_COMPLETION ? pwd(false) : -1;
 }
 
-void FTP::cdup(const char *path)
+void FTP::cdup()
 {
-  send_receive("CMD %s", path);
-  return code_family == C_COMPLETION ? pwd(false) : -1;
+  send_receive("CDUP");
+  return _code_family == C_COMPLETION ? pwd(false) : -1;
+}
+
+void FTP::help(const char *cmd)
+{
+  if (cmd)
+    send_receive("HELP %s", cmd);
+  else
+    send_receive("HELP");
 }
 
 void FTP::mkdir(const char *path)
 {
   send_receive("MKD %s", path);
-  return code_family == C_COMPLETION ? 0 : -1;
+  return _code_family == C_COMPLETION ? 0 : -1;
 }
 
 void FTP::help(const char *arg)
@@ -145,7 +137,7 @@ void FTP::help(const char *arg)
     send_receive("HELP %s", path);
   else
     send_receive("HELP");
-  return code_family == C_COMPLETION ? 0 : -1;
+  return _code_family == C_COMPLETION ? 0 : -1;
 }
 
 void FTP::pwd(bool log)
