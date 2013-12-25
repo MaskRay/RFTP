@@ -25,6 +25,12 @@ void err(const char *fmt, Ts... ts)
 }
 
 template <typename... Ts>
+void warning(const char *fmt, Ts... ts)
+{
+  print(WARNING, fmt, ts...);
+}
+
+template <typename... Ts>
 void log(const char *fmt, Ts... ts)
 {
   print(LOG, fmt, ts...);
@@ -37,7 +43,10 @@ void info(const char *fmt, Ts... ts)
 }
 
 template <typename... Ts>
-void warning(const char *fmt, Ts... ts)
+void debug(const char *fmt, Ts... ts)
 {
-  print(WARNING, fmt, ts...);
+  print(DEBUG, fmt, ts...);
 }
+
+void print(LogLevel level, const char *fmt, va_list ap);
+void debug(const char *fmt, va_list ap);

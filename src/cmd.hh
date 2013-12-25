@@ -18,6 +18,7 @@ public:
   CC(close);
   CC(help);
   CC(login);
+  CC(list);
   CC(mkdir);
   CC(open);
   CC(pwd);
@@ -32,13 +33,15 @@ public:
 
 #define CM(name, fn) {#name, &CMD::fn}
 #define CN(name) CM(name, name)
-  Command cmds[15] = {
+  Command cmds[17] = {
     CM(cd, chdir),
     CN(cdup),
     CM(connect, open),
     CN(close),
     CN(help),
     CN(login),
+    CN(list),
+    CM(ls, list),
     CM(md, mkdir),
     CN(mkdir),
     CN(open),

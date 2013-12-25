@@ -137,6 +137,13 @@ void CMD::login(vector<string> args)
   ftp.login();
 }
 
+void CMD::list(vector<string> args)
+{
+  require_connected();
+  require_logged_in();
+  ftp.lsdir("LIST", "", stdout);
+}
+
 void CMD::open(vector<string> args)
 {
   min_args(args, 1);

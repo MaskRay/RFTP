@@ -22,6 +22,7 @@ public:
   void clearerr(bool inout);
   int error(bool inout);
   int eof();
+  char *printable_local();
 
   bool _connected;
   struct sockaddr_storage _local_addr;

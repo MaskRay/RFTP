@@ -13,7 +13,7 @@ Sock::~Sock()
 
 bool Sock::connect(const struct sockaddr *sa, socklen_t len)
 {
-  _handle = socket(sa->sa_family, SOCK_STREAM, IPPROTO_TCP);
+  _handle = socket(sa->sa_family, SOCK_STREAM, 0);
   if (_handle == -1)
     return false;
 
@@ -31,6 +31,7 @@ bool Sock::connect(const struct sockaddr *sa, socklen_t len)
     _handle = -1;
     return false;
   }
+  memcpy(&_remote_addr, sa, len);
 
   if (! create_streams("r", "w")) {
     close(_handle);
@@ -44,7 +45,9 @@ bool Sock::connect(const struct sockaddr *sa, socklen_t len)
 
 bool Sock::create_streams(const char *in_mode, const char *out_mode)
 {
-  if (_handle == -1 || fin || fout)
+  if (fin || fout)
+    return true;
+  if (_handle == -1)
     return false;
 
   int t = ::dup(_handle);
@@ -188,4 +191,16 @@ int Sock::error(bool inout)
 int Sock::eof()
 {
   return ::feof(fin);
+}
+
+char *Sock::printable_local()
+{
+  char r[INET6_ADDRSTRLEN];
+  if (_local_addr.ss_family == AF_INET6)
+    inet_ntop(AF_INET6, &((struct sockaddr_in6 *)&_local_addr)->sin6_addr, r, INET6_ADDRSTRLEN);
+  else if (_local_addr.ss_family == AF_INET)
+    inet_ntop(AF_INET, &((struct sockaddr_in *)&_local_addr)->sin_addr, r, INET6_ADDRSTRLEN);
+  else
+    return NULL;
+  return strdup(r);
 }

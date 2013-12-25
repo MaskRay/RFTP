@@ -41,7 +41,8 @@ protected:
   bool passive() { return true; } // TODO
   const char *get_reply_text();
   int send_receive(const char *fmt, ...);
-  int fgetc();
+  int fgetc() { return fgetc(_ctrl); }
+  int fgetc(Sock *);
   int gets();
   char *get_cwd();
   void set_cur_dir(const char *path);

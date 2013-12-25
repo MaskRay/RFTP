@@ -41,6 +41,11 @@ int FTP::send_receive(const char *fmt, ...)
   _ctrl->printf("\r\n", ap);
   _ctrl->flush();
 
+  va_start(ap, fmt);
+  debug(fmt, ap);
+  debug("\n");
+  va_end(ap);
+
   if (_ctrl->error(true)) {
     err("Error to send command\n");
     _code = _code_family = -1;
@@ -51,9 +56,9 @@ int FTP::send_receive(const char *fmt, ...)
   return _code;
 }
 
-int FTP::fgetc()
+int FTP::fgetc(Sock *sock)
 {
-  return _ctrl->fgetc();
+  return sock->fgetc();
 }
 
 int FTP::gets()
@@ -197,13 +202,43 @@ int FTP::init_data()
     }
 
     struct sockaddr_storage sa;
-    memset(&sa, 0, sizeof sa);
+    memcpy(&sa, &_ctrl->_remote_addr, sizeof sa);
     if (ipv6) {
       memcpy(&((struct sockaddr_in6 *)&sa)->sin6_addr, &_ctrl->_remote_addr, sizeof _ctrl->_remote_addr);
       ((struct sockaddr_in6 *)&sa)->sin6_port = htons(ipv6_port);
     } else {
       memcpy(&((struct sockaddr_in *)&sa)->sin_addr, addr_port, 4);
       memcpy(&((struct sockaddr_in *)&sa)->sin_port, addr_port + 4, 2);
+    }
+
+    if (! _data->connect((struct sockaddr *)&sa, sizeof sa)) {
+      err("Failed to connect to address returned by PASV/EPSV\n");
+      delete _data;
+      _data = NULL;
+      return -1;
+    }
+  } else {
+    auto *sa = (const struct sockaddr *)&_data->_local_addr;
+    if (sa->sa_family == AF_INET6) {
+      char *addr = _data->printable_local();
+      send_receive("EPRT |2|%s|%u|", addr, ntohs(((struct sockaddr_in6 *)sa)->sin6_port));
+      free(addr);
+    } else if (sa->sa_family == AF_INET) {
+      auto *a = (unsigned char *)sa;
+      auto *p = (unsigned char *)&((struct sockaddr_in *)&_data->_local_addr)->sin_port;
+      send_receive("PORT %d,%d,%d,%d,%d,%d", a[0], a[1], a[2], a[3], p[0], p[1]);
+    } else {
+      err("Cannot listen on unknown family\n");
+      delete _data;
+      _data = NULL;
+      return -1;
+    }
+
+    if (_code_family == C_COMPLETION) {
+      err("PORT/EPRT failed\n");
+      delete _data;
+      _data = NULL;
+      return -1;
     }
   }
 
@@ -214,6 +249,10 @@ int FTP::login()
 {
   // TODO
   char *user = Util::prompt("Login (anonymous): ");
+  if (! *user) {
+    free(user);
+    user = strdup("anonymous");
+  }
   send_receive("USER %s", user);
   free(user);
 
@@ -264,7 +303,7 @@ int FTP::recv_ascii(FILE *fout)
   bool brk = false;
   int saved = -2;
   while (! brk) {
-    int c = saved == -2 ? fgetc() : saved;
+    int c = saved == -2 ? fgetc(_data) : saved;
     saved = -2;
     switch (c) {
     case EOF:
@@ -291,7 +330,7 @@ int FTP::lsdir(const char *cmd, const char *path, FILE *fout)
   if (_code_family != C_PRELIMINARY)
     return -1;
 
-  if (_data->accept(passive())) {
+  if (! _data->accept(passive())) {
     err("accept failed\n");
     return -1;
   }
@@ -346,7 +385,7 @@ bool FTP::pasv(bool ipv6, unsigned char *res, unsigned short *ipv6_port)
   }
 
   send_receive(ipv6 ? "EPSV" : "PASV");
-  if (_code != C_COMPLETION) {
+  if (_code_family != C_COMPLETION) {
     _has_pasv_cmd = false;
     return false;
   }
@@ -354,10 +393,10 @@ bool FTP::pasv(bool ipv6, unsigned char *res, unsigned short *ipv6_port)
   const char *t = get_reply_text();
   for (; *t && ! isdigit(*t); t++);
   if (ipv6) {
-    if (sscanf(t, "%hu", &ipv6_port) != 1)
+    if (sscanf(t, "%hu", ipv6_port) != 1)
       return false;
   } else {
-    if (sscanf(t, "%hhu,%hhu,%hhu,%hhu,%hhu,%hhu", &res[0], &res[1], &res[2], &res[3], &res[4], &res[5]) != 1)
+    if (sscanf(t, "%hhu,%hhu,%hhu,%hhu,%hhu,%hhu", &res[0], &res[1], &res[2], &res[3], &res[4], &res[5]) != 6)
       return false;
   }
   return true;
