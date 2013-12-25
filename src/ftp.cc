@@ -20,17 +20,28 @@ bool FTP::logged_in()
 
 int FTP::close()
 {
-  send_receive("QUIT");
-  free(home_dir);
-  free(cur_dir);
-  free(prev_dir);
+  if (_connected) {
+    _logged_in = false;
+    send_receive("QUIT");
+    delete _ctrl;
+    _ctrl = NULL;
+    delete _data;
+    _data = NULL;
+    free(home_dir);
+    home_dir = NULL;
+    free(cur_dir);
+    cur_dir = NULL;
+    free(prev_dir);
+    prev_dir = NULL;
+    _connected = false;
+  }
   return 0;
 }
 
 template <typename... Ts>
 int FTP::send_receive(const char *fmt, Ts... ts)
 {
-  return send_receive(INFO, fmt, ts...);
+  return send_receive(DEBUG, fmt, ts...);
 }
 
 int FTP::send_receive(LogLevel level, const char *fmt, ...)
@@ -48,6 +59,7 @@ int FTP::send_receive(LogLevel level, const char *fmt, ...)
   _ctrl->flush();
 
   va_start(ap, fmt);
+  debug("< ");
   debug(fmt, ap);
   debug("\n");
   va_end(ap);
@@ -321,12 +333,12 @@ int FTP::login()
     free(user);
     user = strdup("anonymous");
   }
-  send_receive(DEBUG, "USER %s", user);
+  send_receive(CRIT, "USER %s", user);
   free(user);
 
   if (_code_family == C_INTERMEDIATE) {
     char *pass = getpass("Password: ");
-    send_receive(DEBUG, "PASS %s", pass);
+    send_receive(CRIT, "PASS %s", pass);
   }
 
   if (_code_family == C_COMPLETION) {
@@ -548,15 +560,6 @@ int FTP::pwd(bool log)
   send_receive("PWD");
   if (log)
     print_reply();
-}
-
-void FTP::quit()
-{
-  delete _ctrl;
-  _ctrl = NULL;
-  delete _data;
-  _data = NULL;
-  _logged_in = false;
 }
 
 int FTP::rmdir(const char *path)

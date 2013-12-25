@@ -35,11 +35,12 @@ public:
 
 #define CM(name, fn) {#name, &CMD::fn}
 #define CN(name) CM(name, name)
-  Command cmds[19] = {
+  Command cmds[21] = {
     CM(cd, chdir),
     CN(cdup),
     CM(connect, open),
     CN(close),
+    CM(dir, list),
     CN(get),
     CN(help),
     CN(login),
@@ -54,6 +55,7 @@ public:
     CN(rhelp),
     CM(rd, rmdir),
     CN(rmdir),
+    CM(?, help),
     {NULL, NULL},
   };
 

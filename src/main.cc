@@ -2,37 +2,59 @@
 #include <stdio.h>
 #include <unistd.h>
 #include "cmd.hh"
+#include "completion.hh"
 #include "log.hh"
 
 void command_loop()
 {
 }
 
+void help(FILE *fout, const char *argv0)
+{
+  fprintf(fout, "FTP client.\n");
+  fprintf(fout, "\n");
+  fprintf(fout, "Usage: %s [options]\n", argv0);
+  fprintf(fout, "Options:\n");
+  fprintf(fout, "  -d, --debug     \n");
+  fprintf(fout, "  -h, --help      display this help and exit\n");
+  fprintf(fout, "  -q, --quiet     \n");
+  fprintf(fout, "\n");
+  fprintf(fout, "Report bugs to i@maskray.me\n");
+}
+
 int main(int argc, char *argv[])
 {
   struct option longopts[] = {
+    {"debug", no_argument, 0, 'd'},
     {"help", no_argument, 0, 'h'},
     {"quiet", no_argument, 0, 'q'},
-    {"verbose", no_argument, 0, 'v'},
     {NULL, 0, 0, 0},
   };
 
+  gv_log_level = INFO;
+
   int c;
-  while ((c = getopt_long(argc, argv, "hqv", longopts, NULL)) != -1) {
+  while ((c = getopt_long(argc, argv, "dhq", longopts, NULL)) != -1) {
     switch (c) {
+    case 'd':
+      gv_log_level = DEBUG;
+      break;
     case 'h':
-      break;
+      help(stdout, argv[0]);
+      return 0;
     case 'q':
+      gv_log_level = WARNING;
       break;
-    case 'v':
-      break;
+    case '?':
+      help(stderr, argv[0]);
+      return 1;
     }
   }
 
+  init_readline();
+
   for (; optind < argc; optind++) {
   }
-
-  gv_log_level = DEBUG;
 
   CMD cmd;
   cmd.loop();

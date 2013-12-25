@@ -114,7 +114,7 @@ void CMD::chdir(vector<string> args)
 void CMD::close(vector<string> args)
 {
   max_args(args, 0);
-  require_connected();
+  ftp.close();
 }
 
 void CMD::mkdir(vector<string> args)
@@ -137,11 +137,14 @@ void CMD::get(vector<string> args)
 void CMD::help(vector<string> args)
 {
   max_args(args, 0);
+  puts("All commands:");
+  for (int i = 0; cmds[i].name; i++)
+    printf("  %s\n", cmds[i].name);
 }
 
 void CMD::login(vector<string> args)
 {
-  // todo
+  require_connected();
   ftp.login();
 }
 
@@ -180,6 +183,8 @@ void CMD::pwd(vector<string> args)
 void CMD::quit(vector<string> args)
 {
   max_args(args, 0);
+  ftp.close();
+  exit(0);
 }
 
 void CMD::rhelp(vector<string> args)

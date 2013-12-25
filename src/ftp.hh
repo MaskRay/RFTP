@@ -32,7 +32,6 @@ public:
   ull size(const char *path);
   int type(TransferMode mode);
 
-  void quit();
   int login();
 
   bool connected();
@@ -59,7 +58,7 @@ protected:
   int gets();
   char *get_cwd();
   void set_cur_dir(const char *path);
-  int read_reply() { return read_reply(INFO); }
+  int read_reply() { return read_reply(DEBUG); }
   int read_reply(LogLevel level);
   void print_reply();
   void print_reply(LogLevel level);
