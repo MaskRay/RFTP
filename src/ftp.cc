@@ -27,7 +27,13 @@ int FTP::close()
   return 0;
 }
 
-int FTP::send_receive(const char *fmt, ...)
+template <typename... Ts>
+int FTP::send_receive(const char *fmt, Ts... ts)
+{
+  return send_receive(INFO, fmt, ts...);
+}
+
+int FTP::send_receive(LogLevel level, const char *fmt, ...)
 {
   if (! (_ctrl && _ctrl->_connected)) {
     err("No control connection\n");
@@ -52,7 +58,7 @@ int FTP::send_receive(const char *fmt, ...)
     return -1;
   }
 
-  read_reply();
+  read_reply(level);
   return _code;
 }
 
@@ -128,7 +134,7 @@ void FTP::print_reply()
   log("> %s\n", _reply);
 }
 
-int FTP::read_reply()
+int FTP::read_reply(LogLevel level)
 {
   set_signal(SIGALRM, reply_alrm_handler);
   alarm(_reply_timeout);
@@ -142,11 +148,11 @@ int FTP::read_reply()
     return -1;
   }
 
-  print_reply(INFO);
+  print_reply(level);
   if (_reply[3] == '-') {
     char tmp[3];
     strncpy(tmp, _reply, 3);
-    while (gets() != -1 && (print_reply(), strncmp(tmp, _reply, 3)));
+    while (gets() != -1 && (print_reply(level), strncmp(tmp, _reply, 3)));
   }
   alarm(0);
   set_signal(SIGALRM, SIG_DFL);
@@ -245,6 +251,68 @@ int FTP::init_data()
   return 0;
 }
 
+int FTP::get_file(const char *in_path, const char *out_path, TransferMode mode)
+{
+  struct stat buf;
+  if (! stat(out_path, &buf)) {
+    if (! S_ISDIR(buf.st_mode)) {
+      err("%s is a directory\n", out_path);
+      return -1;
+    }
+    if (! (buf.st_mode & S_IWRITE)) {
+      err("%s is not writable\n", out_path);
+      return -1;
+    }
+  }
+
+  if (init_receive(in_path, mode))
+    return -1;
+
+  FILE *f = fopen(out_path, "w");
+  if (! f) {
+    err("Failed to open %s\n", out_path);
+    return -1;
+  }
+  if (mode == BINARY)
+    recv_binary(f);
+  else
+    recv_ascii(f);
+  fclose(f);
+  return -1;
+}
+
+int FTP::init_receive(const char *in_path, TransferMode mode)
+{
+  if (init_data())
+    return -1;
+  type(mode);
+  send_receive("RETR %s", in_path);
+  if (_code_family != C_PRELIMINARY)
+    return -1;
+
+  if (! _data->accept(passive())) {
+    err("accept failed\n");
+    return -1;
+  }
+  return 0;
+}
+
+int FTP::init_send(const char *out_path, TransferMode mode)
+{
+  if (init_data())
+    return -1;
+  type(mode);
+  send_receive("STOR %s", out_path);
+  if (_code_family != C_PRELIMINARY)
+    return -1;
+
+  if (! _data->accept(passive())) {
+    err("accept failed\n");
+    return -1;
+  }
+  return 0;
+}
+
 int FTP::login()
 {
   // TODO
@@ -253,13 +321,12 @@ int FTP::login()
     free(user);
     user = strdup("anonymous");
   }
-  send_receive("USER %s", user);
+  send_receive(DEBUG, "USER %s", user);
   free(user);
 
   if (_code_family == C_INTERMEDIATE) {
-    print_reply();
     char *pass = getpass("Password: ");
-    send_receive("PASS %s", pass);
+    send_receive(DEBUG, "PASS %s", pass);
   }
 
   if (_code_family == C_COMPLETION) {
@@ -298,6 +365,19 @@ int FTP::help(const char *cmd)
   return _code_family == C_COMPLETION ? 0 : -1;
 }
 
+int FTP::recv_binary(FILE *fout)
+{
+  char buf[BUF_SIZE];
+  int saved = -2;
+  for(;;) {
+    ssize_t n = _data->read(buf, BUF_SIZE);
+    if (n <= 0)
+      break;
+    ::fwrite(buf, n, 1, fout);
+  }
+  return 0;
+}
+
 int FTP::recv_ascii(FILE *fout)
 {
   bool brk = false;
@@ -312,6 +392,35 @@ int FTP::recv_ascii(FILE *fout)
     default:
       fputc(c, fout);
     }
+  }
+  return 0;
+}
+
+int FTP::send_ascii(FILE *fin)
+{
+  char buf[BUF_SIZE];
+  int c;
+  while ((c = ::fgetc(fin)) != EOF) {
+    if (c == '\n') {
+      if (_data->fputc('\r') == EOF)
+        break;
+    }
+    if (_data->fputc(c) == EOF)
+      break;
+  }
+  return 0;
+}
+
+int FTP::send_binary(FILE *fin)
+{
+  char buf[BUF_SIZE];
+  int saved = -2;
+  for(;;) {
+    ssize_t n = ::fread(buf, BUF_SIZE, 1, fin);
+    if (n <= 0)
+      break;
+    if (_data->write(buf, n) != n)
+      return -1;
   }
   return 0;
 }
@@ -402,6 +511,38 @@ bool FTP::pasv(bool ipv6, unsigned char *res, unsigned short *ipv6_port)
   return true;
 }
 
+int FTP::put_file(const char *in_path, const char *out_path, TransferMode mode)
+{
+  struct stat buf;
+  if (stat(in_path, &buf)) {
+    perror("");
+    return -1;
+  }
+  if (S_ISDIR(buf.st_mode)) {
+    err("%s is a directory\n", out_path);
+    return -1;
+  }
+  if (access(in_path, R_OK)) {
+    err("%s is not readable\n", in_path);
+    return -1;
+  }
+
+  if (init_send(in_path, mode))
+    return -1;
+
+  FILE *f = fopen(in_path, "r");
+  if (! f) {
+    perror(in_path);
+    return -1;
+  }
+  if (mode == BINARY)
+    send_binary(f);
+  else
+    send_ascii(f);
+  fclose(f);
+  return -1;
+}
+
 int FTP::pwd(bool log)
 {
   send_receive("PWD");
@@ -437,4 +578,10 @@ ull FTP::size(const char *path)
   ull res;
   sscanf(_reply, "%*s %llu", &res);
   return res;
+}
+
+int FTP::type(TransferMode mode)
+{
+  send_receive("TYPE %c", mode == BINARY ? 'I' : 'A');
+  return _code_family == C_COMPLETION ? 0 : -1;
 }

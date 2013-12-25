@@ -11,21 +11,26 @@ enum CodeFamily {C_NONE, C_PRELIMINARY, C_COMPLETION, C_INTERMEDIATE, C_TRANSIEN
 
 enum Code {C_NOT_IMPLEMENTED = 502};
 
+enum TransferMode { BINARY, ASCII };
+
 class FTP {
 public:
   FTP();
 
   int chdir(const char *path);
   int cdup();
+  int get_file(const char *in_path, const char *out_path, TransferMode mode);
   int help(const char *cmd);
   int lsdir(const char *cmd, const char *path, FILE *fout);
   int mkdir(const char *path);
   int open(const char *host);
   bool pasv(bool ipv6, unsigned char *res, unsigned short *ipv6_port);
+  int put_file(const char *in_path, const char *out_path, TransferMode mode);
   int pwd(bool log);
   int close();
   int rmdir(const char *path);
   ull size(const char *path);
+  int type(TransferMode mode);
 
   void quit();
   int login();
@@ -36,17 +41,26 @@ public:
   bool _connected = false;
 
 protected:
+  int recv_binary(FILE *fout);
   int recv_ascii(FILE *fout);
+  int send_binary(FILE *fin);
+  int send_ascii(FILE *fin);
   int init_data();
+  int init_receive(const char *in_path, TransferMode mode);
+  int init_send(const char *out_path, TransferMode mode);
   bool passive() { return true; } // TODO
   const char *get_reply_text();
-  int send_receive(const char *fmt, ...);
+  template <typename... Ts>
+    int send_receive(const char *fmt, Ts... ts);
+  int send_receive(LogLevel level, const char *fmt, ...);
   int fgetc() { return fgetc(_ctrl); }
   int fgetc(Sock *);
+  int fread(Sock *, size_t);
   int gets();
   char *get_cwd();
   void set_cur_dir(const char *path);
-  int read_reply();
+  int read_reply() { return read_reply(INFO); }
+  int read_reply(LogLevel level);
   void print_reply();
   void print_reply(LogLevel level);
 

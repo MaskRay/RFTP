@@ -8,6 +8,7 @@
 #include <fnmatch.h>
 #include <getopt.h>
 #include <signal.h>
+#include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
 
@@ -25,5 +26,7 @@
 using namespace std;
 
 typedef unsigned long long ull;
+
+const int BUF_SIZE = 4096;
 
 void exit_all();

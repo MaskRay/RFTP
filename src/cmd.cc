@@ -126,6 +126,14 @@ void CMD::mkdir(vector<string> args)
   ftp.mkdir(args[0].c_str());
 }
 
+void CMD::get(vector<string> args)
+{
+  require_connected();
+  require_logged_in();
+  for (auto path: args)
+    ftp.get_file(path.c_str(), path.c_str(), BINARY);
+}
+
 void CMD::help(vector<string> args)
 {
   max_args(args, 0);
@@ -150,6 +158,14 @@ void CMD::open(vector<string> args)
   max_args(args, 1);
 
   ftp.open(args[0].c_str());
+}
+
+void CMD::put(vector<string> args)
+{
+  require_connected();
+  require_logged_in();
+  for (auto path: args)
+    ftp.put_file(path.c_str(), path.c_str(), BINARY);
 }
 
 void CMD::pwd(vector<string> args)
