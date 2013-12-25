@@ -1,3 +1,4 @@
+#include <getopt.h>
 #include "cmd.hh"
 
 const CMD::Command *CMD_AMBIGUOUS = (CMD::Command *)-1;
@@ -130,8 +131,47 @@ void CMD::get(vector<string> args)
 {
   require_connected();
   require_logged_in();
-  for (auto path: args)
-    ftp.get_file(path.c_str(), path.c_str(), BINARY);
+  int argc = args.size() + 1;
+  auto argv = new char*[argc];
+  argv[0] = strdup("get");
+  REP(i, args.size())
+    argv[i+1] = strdup(args[i].c_str());
+
+  struct option longopts[] = {
+    {"ascii", no_argument, 0, 'a'},
+    {"output", required_argument, 0, 'o'},
+    {0, 0, 0, 0},
+  };
+
+  char *out_path = NULL;
+  TransferMode mode = BINARY;
+  int c;
+  optind = 0;
+  while ((c = getopt_long(argc, argv, "ao:", longopts, NULL)) != -1) {
+    switch (c) {
+    case 'a':
+      mode = ASCII;
+      break;
+    case 'o':
+      out_path = strdup(optarg);
+      break;
+    }
+  }
+
+  if (optind >= argc) {
+    min_args(args, optind + 1);
+    return;
+  }
+
+  char *in_path = argv[optind];
+  if (! out_path)
+    out_path = strdup(in_path);
+  ftp.get_file(in_path, out_path, mode);
+  free(out_path);
+
+  REP(i, argc)
+    free(argv[i]);
+  delete argv;
 }
 
 void CMD::help(vector<string> args)
@@ -167,8 +207,47 @@ void CMD::put(vector<string> args)
 {
   require_connected();
   require_logged_in();
-  for (auto path: args)
-    ftp.put_file(path.c_str(), path.c_str(), BINARY);
+  int argc = args.size() + 1;
+  auto argv = new char*[argc];
+  argv[0] = strdup("get");
+  REP(i, args.size())
+    argv[i+1] = strdup(args[i].c_str());
+
+  struct option longopts[] = {
+    {"ascii", no_argument, 0, 'a'},
+    {"output", required_argument, 0, 'o'},
+    {0, 0, 0, 0},
+  };
+
+  char *out_path = NULL;
+  TransferMode mode = BINARY;
+  int c;
+  optind = 0;
+  while ((c = getopt_long(argc, argv, "ao:", longopts, NULL)) != -1) {
+    switch (c) {
+    case 'a':
+      mode = ASCII;
+      break;
+    case 'o':
+      out_path = strdup(optarg);
+      break;
+    }
+  }
+
+  if (optind >= argc) {
+    min_args(args, optind + 1);
+    return;
+  }
+
+  char *in_path = argv[optind];
+  if (! out_path)
+    out_path = strdup(in_path);
+  ftp.put_file(in_path, out_path, mode);
+  free(out_path);
+
+  REP(i, argc)
+    free(argv[i]);
+  delete argv;
 }
 
 void CMD::pwd(vector<string> args)

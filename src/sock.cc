@@ -13,7 +13,7 @@ Sock::~Sock()
 
 bool Sock::connect(const struct sockaddr *sa, socklen_t len)
 {
-  _handle = socket(sa->sa_family, SOCK_STREAM, 0);
+  _handle = socket(sa->sa_family, SOCK_STREAM, IPPROTO_TCP);
   if (_handle == -1)
     return false;
 

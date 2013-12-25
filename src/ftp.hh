@@ -60,6 +60,7 @@ protected:
   void set_cur_dir(const char *path);
   int read_reply() { return read_reply(DEBUG); }
   int read_reply(LogLevel level);
+  void print_error();
   void print_reply();
   void print_reply(LogLevel level);
 

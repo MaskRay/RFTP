@@ -136,6 +136,12 @@ void reply_alrm_handler(int)
 {
 }
 
+void FTP::print_error()
+{
+  if (_code_family >= C_TRANSIENT)
+    print_reply();
+}
+
 void FTP::print_reply(LogLevel level)
 {
   print(level, "> %s\n", _reply);
@@ -267,24 +273,19 @@ int FTP::get_file(const char *in_path, const char *out_path, TransferMode mode)
 {
   struct stat buf;
   if (! stat(out_path, &buf)) {
-    if (! S_ISDIR(buf.st_mode)) {
+    if (S_ISDIR(buf.st_mode)) {
       err("%s is a directory\n", out_path);
       return -1;
     }
-    if (! (buf.st_mode & S_IWRITE)) {
-      err("%s is not writable\n", out_path);
-      return -1;
-    }
+  }
+  FILE *f = fopen(out_path, "w");
+  if (! f) {
+    perror(out_path);
+    return -1;
   }
 
   if (init_receive(in_path, mode))
     return -1;
-
-  FILE *f = fopen(out_path, "w");
-  if (! f) {
-    err("Failed to open %s\n", out_path);
-    return -1;
-  }
   if (mode == BINARY)
     recv_binary(f);
   else
@@ -359,12 +360,14 @@ int FTP::chdir(const char *path)
     set_cur_dir(get_cwd());
     return 0;
   }
+  print_error();
   return -1;
 }
 
 int FTP::cdup()
 {
   send_receive("CDUP");
+  print_error();
   return _code_family == C_COMPLETION ? pwd(false) : -1;
 }
 
@@ -401,6 +404,15 @@ int FTP::recv_ascii(FILE *fout)
     case EOF:
       brk = true;
       break;
+    case '\r':
+      saved = fgetc(_data);
+      if (saved == EOF)
+        break;
+      if (saved == '\n') {
+        c = saved;
+        saved = -2;
+      }
+      // fall through
     default:
       fputc(c, fout);
     }
