@@ -1,9 +1,10 @@
 #pragma once
+#include <setjmp.h>
+#include <stdarg.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdarg.h>
 #include <string.h>
-#include <setjmp.h>
 
 #include <fnmatch.h>
 #include <getopt.h>
@@ -32,3 +33,5 @@ using namespace std;
 typedef unsigned long long ull;
 
 const int BUF_SIZE = 4096;
+
+enum TransferMode { ASCII, IMAGE };

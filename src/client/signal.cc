@@ -1,5 +1,5 @@
+#include "../log.hh"
 #include "signal.hh"
-#include "log.hh"
 #include "gv.hh"
 
 static int nsigints = 0;
@@ -26,7 +26,7 @@ void set_signal_with_mask(int signum, sighandler_t handler, int block)
     sigaddset(&sa.sa_mask, block);
   sa.sa_flags = SA_RESTART;
   if (sigaction(signum, &sa, nullptr))
-    err(__func__);
+    err("sigaction\n");
 }
 
 void sigint_handler(int)

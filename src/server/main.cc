@@ -1,3 +1,4 @@
+#include "../log.hh"
 #include "session.hh"
 
 void help(FILE *fout, const char *argv0)
@@ -31,6 +32,7 @@ int main(int argc, char *argv[])
   while ((c = getopt_long(argc, argv, "dhnp:q", longopts, NULL)) != -1) {
     switch (c) {
     case 'd':
+      gv_log_level = DEBUG;
       break;
     case 'h':
       help(stdout, argv[0]);

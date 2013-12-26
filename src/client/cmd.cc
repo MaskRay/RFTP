@@ -152,7 +152,7 @@ void CMD::get(vector<string> args)
   };
 
   char *out_path = NULL;
-  TransferMode mode = BINARY;
+  TransferMode mode = IMAGE;
   int c;
   optind = 0;
   while ((c = getopt_long(argc, argv, "ao:", longopts, NULL)) != -1) {
@@ -200,7 +200,7 @@ void CMD::list(vector<string> args)
 {
   require_connected();
   require_logged_in();
-  ftp.lsdir("LIST", "", stdout);
+  ftp.lsdir("LIST", args.size() == 0 ? "" : args[0].c_str(), stdout);
 }
 
 void CMD::open(vector<string> args)
@@ -236,7 +236,7 @@ void CMD::put(vector<string> args)
   };
 
   char *out_path = NULL;
-  TransferMode mode = BINARY;
+  TransferMode mode = IMAGE;
   int c;
   optind = 0;
   while ((c = getopt_long(argc, argv, "ao:", longopts, NULL)) != -1) {

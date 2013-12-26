@@ -1,17 +1,15 @@
 #pragma once
 #include "../common.hh"
 #include "../connection.hh"
+#include "../log.hh"
 #include "../sock.hh"
 #include "../util.hh"
-#include "log.hh"
 
 #define C(name) int name(int argc, char **argv)
 
 enum CodeFamily {C_NONE, C_PRELIMINARY, C_COMPLETION, C_INTERMEDIATE, C_TRANSIENT, C_PERMANENT};
 
 enum Code {C_NOT_IMPLEMENTED = 502};
-
-enum TransferMode { BINARY, ASCII };
 
 class FTP : public Connection {
 public:
@@ -42,10 +40,6 @@ public:
 
 protected:
   int gets();
-  int recv_binary(FILE *fout);
-  int recv_ascii(FILE *fout);
-  int send_binary(FILE *fin);
-  int send_ascii(FILE *fin);
   int init_data();
   int init_receive(const char *in_path, TransferMode mode);
   int init_send(const char *out_path, TransferMode mode);

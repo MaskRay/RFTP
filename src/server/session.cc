@@ -28,24 +28,20 @@ bool Session::set_pasv()
   bool ipv6 = _ctrl->_local_addr.ss_family == AF_INET6;
 
   _data = _ctrl->dup();
-  struct sockaddr_storage sa;
-  memcpy(&sa, &_ctrl->_local_addr, sizeof sa);
-  for(;;) {
-    if (ipv6)
-      ((struct sockaddr_in6 *)&sa)->sin6_port = htons(get_passive_port());
-    else
-      ((struct sockaddr_in *)&sa)->sin_port = htons(get_passive_port());
-    if (_data->bind(&sa))
-      break;
-    if (errno != EADDRINUSE) {
-      send(500, "Failed to bind: %d", errno);
-      delete _data;
-      _data = NULL;
-      return false;
-    }
+  auto sa = (struct sockaddr_in *)&_data->_local_addr;
+  auto sa6 = (struct sockaddr_in6 *)&_data->_local_addr;
+  if (ipv6)
+    sa6->sin6_port = 0;
+  else
+    sa->sin_port = 0;
+  if (! _data->bind() || ! _data->listen()) {
+    send(500, "Failed to bind/listen: %d", errno);
+    delete _data;
+    _data = NULL;
+    return false;
   }
 
-  return _pasv = true;
+  return _passive = true;
 }
 
 void Session::send(int code, const char *fmt, ...)
@@ -59,14 +55,19 @@ void Session::send(int code, const char *fmt, ...)
   _ctrl->flush();
 }
 
-void Session::send_ok(int code)
+void Session::send_500()
 {
-  send(code, "Command successful");
+  send(500, "Not understood");
 }
 
 void Session::send_501()
 {
-  send(501, "Syntax error in parameters or arguments");
+  send(501, "Invalid number of arguments");
+}
+
+void Session::send_ok(int code)
+{
+  send(code, "Command successful");
 }
 
 void Session::loop()
@@ -76,14 +77,18 @@ void Session::loop()
   send(220, "Ready");
   for(;;) {
     int len = gets();
-    if (_ctrl->eof()) break;
+    if (_ctrl->eof())
+      break;
+    puts(_reply);
     int argc = 0;
     char *q;
     if (*_reply) {
       argv[argc++] = _reply;
-      strtok(_reply, " \t");
-      if ((q = strtok(NULL, " \t")) != NULL)
-        argv[argc++] = q;
+      q = strchr(_reply, ' ');
+      if (q) {
+        *q = '\0';
+        argv[argc++] = q+1;
+      }
     }
 
     Command *cmd = NULL;
@@ -121,7 +126,7 @@ void Session::loop()
       if (exe)
         (this->*(cmd->fn))(argc, argv);
     } else
-      send(500, "Invalid command");
+      send_500();
   }
   delete[] argv;
 }
@@ -153,8 +158,35 @@ void Session::do_cwd(int argc, char *argv[])
     send_ok(250);
 }
 
+bool Session::init_data(TransferMode type)
+{
+  if (_passive) {
+    if (! _data->accept(! _passive)) {
+      send_500();
+      return false;
+    }
+    if (type == IMAGE)
+      send(150, "Opening IMAGE mode data connection");
+    else
+      send(150, "Opening ASCII mode data connection for file list");
+  } else {
+    send(500, "");
+    return false;
+  }
+  return true;
+}
+
 void Session::do_list(int argc, char *argv[])
 {
+  if (! init_data(ASCII))
+    return;
+  char *path = argc == 1 ? NULL : argv[1];
+  if (path && *path == '-') {
+    while (*path && *path != ' ') path++;
+    if (*path) path++;
+    else path = NULL;
+  }
+
   char buf[BUF_SIZE];
   int pi[2];
   if (pipe(pi) == -1)
@@ -162,20 +194,35 @@ void Session::do_list(int argc, char *argv[])
   pid_t pid = fork();
   if (pid == -1)
     return;
+
   if (pid) {
     ssize_t n;
     close(pi[1]);
     while ((n = read(pi[0], buf, BUF_SIZE)) > 0)
       if (_data->write(buf, n) == -1)
         break;
+    delete _data;
+    _data = NULL;
     close(pi[0]);
     waitpid(pid, NULL, 0);
   } else {
     close(pi[0]);
     dup2(pi[1], 1);
     close(pi[1]);
-    execlp("ls", "ls", "-l", NULL);
+    execlp("ls", "ls", "-l", path, NULL);
+    return;
   }
+
+  send(226, "Transfer complete");
+}
+
+void Session::do_mdtm(int argc, char *argv[])
+{
+  struct stat statbuf;
+  if (stat(argv[1], &statbuf) == -1)
+    send(550, "\"%s\": No such file or directory", argv[1]);
+  else
+    send(213, "%jd", (intmax_t)statbuf.st_size);
 }
 
 void Session::do_mkd(int argc, char *argv[])
@@ -214,10 +261,29 @@ void Session::do_pwd(int argc, char *argv[])
 
 void Session::do_quit(int argc, char *argv[])
 {
+  send(221, "Goodbye");
+  this->~Session();
 }
 
 void Session::do_retr(int argc, char *argv[])
 {
+  char buf[BUF_SIZE];
+  FILE *f = fopen(argv[1], "r");
+  if (! f) {
+    send(550, "\"%s\": No such file or directory", argv[1]);
+    return;
+  }
+
+  if (! init_data(_type))
+    return;
+  if (_type == IMAGE)
+    send_binary(f);
+  else
+    send_ascii(f);
+  fclose(f);
+  delete _data;
+  _data = NULL;
+  send(226, "Transfer complete");
 }
 
 void Session::do_rmd(int argc, char *argv[])
@@ -226,6 +292,13 @@ void Session::do_rmd(int argc, char *argv[])
 
 void Session::do_size(int argc, char *argv[])
 {
+  struct stat statbuf;
+  if (_type != IMAGE)
+    send(550, "SIZE not allowed in ASCII mode");
+  else if (stat(argv[1], &statbuf) == -1)
+    send(550, "\"%s\": No such file or directory", argv[1]);
+  else
+    send(213, "%jd", (intmax_t)statbuf.st_size);
 }
 
 void Session::do_stor(int argc, char *argv[])
@@ -234,6 +307,14 @@ void Session::do_stor(int argc, char *argv[])
 
 void Session::do_type(int argc, char *argv[])
 {
+  if (! strcasecmp(argv[1], "A")) {
+    _type = ASCII;
+    send(200, "Type set to A");
+  } else if (! strcasecmp(argv[1], "I")) {
+    _type = IMAGE;
+    send(200, "Type set to I");
+  } else
+    send(500, "'Type %s' not understood", argv[1]);
 }
 
 void Session::do_user(int argc, char *argv[])

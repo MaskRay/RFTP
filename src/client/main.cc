@@ -3,7 +3,7 @@
 #include <unistd.h>
 #include "cmd.hh"
 #include "completion.hh"
-#include "log.hh"
+#include "../log.hh"
 
 void command_loop()
 {

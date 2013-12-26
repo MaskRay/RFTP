@@ -251,7 +251,7 @@ int FTP::get_file(const char *in_path, const char *out_path, TransferMode mode)
 
   if (init_receive(in_path, mode))
     return -1;
-  if (mode == BINARY)
+  if (mode == IMAGE)
     recv_binary(f);
   else
     recv_ascii(f);
@@ -343,75 +343,6 @@ int FTP::help(const char *cmd)
   else
     send_receive("HELP");
   return _code_family == C_COMPLETION ? 0 : -1;
-}
-
-int FTP::recv_binary(FILE *fout)
-{
-  char buf[BUF_SIZE];
-  int saved = -2;
-  for(;;) {
-    ssize_t n = _data->read(buf, BUF_SIZE);
-    if (n <= 0)
-      break;
-    ::fwrite(buf, n, 1, fout);
-  }
-  return 0;
-}
-
-int FTP::recv_ascii(FILE *fout)
-{
-  bool brk = false;
-  int saved = -2;
-  while (! brk) {
-    int c = saved == -2 ? fgetc(_data) : saved;
-    saved = -2;
-    switch (c) {
-    case EOF:
-      brk = true;
-      break;
-    case '\r':
-      saved = fgetc(_data);
-      if (saved == EOF)
-        break;
-      if (saved == '\n') {
-        c = saved;
-        saved = -2;
-      }
-      // fall through
-    default:
-      fputc(c, fout);
-    }
-  }
-  return 0;
-}
-
-int FTP::send_ascii(FILE *fin)
-{
-  char buf[BUF_SIZE];
-  int c;
-  while ((c = ::fgetc(fin)) != EOF) {
-    if (c == '\n') {
-      if (_data->fputc('\r') == EOF)
-        break;
-    }
-    if (_data->fputc(c) == EOF)
-      break;
-  }
-  return 0;
-}
-
-int FTP::send_binary(FILE *fin)
-{
-  char buf[BUF_SIZE];
-  int saved = -2;
-  for(;;) {
-    ssize_t n = ::fread(buf, BUF_SIZE, 1, fin);
-    if (n <= 0)
-      break;
-    if (_data->write(buf, n) != n)
-      return -1;
-  }
-  return 0;
 }
 
 int FTP::lsdir(const char *cmd, const char *path, FILE *fout)
@@ -527,7 +458,7 @@ int FTP::put_file(const char *in_path, const char *out_path, TransferMode mode)
     perror(in_path);
     return -1;
   }
-  if (mode == BINARY)
+  if (mode == IMAGE)
     send_binary(f);
   else
     send_ascii(f);
@@ -565,6 +496,6 @@ ull FTP::size(const char *path)
 
 int FTP::type(TransferMode mode)
 {
-  send_receive("TYPE %c", mode == BINARY ? 'I' : 'A');
+  send_receive("TYPE %c", mode == IMAGE ? 'I' : 'A');
   return _code_family == C_COMPLETION ? 0 : -1;
 }
