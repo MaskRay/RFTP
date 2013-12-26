@@ -1,6 +1,7 @@
 #include "sock.hh"
 
-Sock::Sock() : _connected(false), _handle(-1), fin(NULL), fout(NULL) {}
+Sock::Sock(int family) : _handle(::socket(family, SOCK_STREAM, IPPROTO_TCP))
+{} 
 
 Sock::~Sock()
 {
@@ -11,13 +12,9 @@ Sock::~Sock()
   }
 }
 
-bool Sock::connect(const struct sockaddr *sa, socklen_t len)
+bool Sock::connect(const struct sockaddr_storage *sa)
 {
-  _handle = socket(sa->sa_family, SOCK_STREAM, IPPROTO_TCP);
-  if (_handle == -1)
-    return false;
-
-  if (::connect(_handle, sa, len) == -1) {
+  if (::connect(_handle, (const struct sockaddr *)sa, sizeof *sa) == -1) {
     perror(__func__);
     close(_handle);
     _handle = -1;
@@ -31,7 +28,7 @@ bool Sock::connect(const struct sockaddr *sa, socklen_t len)
     _handle = -1;
     return false;
   }
-  memcpy(&_remote_addr, sa, len);
+  memcpy(&_remote_addr, sa, sizeof *sa);
 
   if (! create_streams("r", "w")) {
     close(_handle);
@@ -84,7 +81,7 @@ void Sock::destroy_streams()
 
 Sock *Sock::dup()
 {
-  Sock *s = new Sock;
+  Sock *s = new Sock(_local_addr.ss_family);
   memcpy(&s->_local_addr, &_local_addr, sizeof _local_addr);
   memcpy(&s->_remote_addr, &_remote_addr, sizeof _remote_addr);
   return s;
@@ -134,22 +131,17 @@ Sock *Sock::server_accept()
   return r;
 }
 
-bool Sock::listen(const struct sockaddr *sa, socklen_t len)
+bool Sock::bind(const struct sockaddr_storage *sa)
 {
-  _handle = socket(sa->sa_family, SOCK_STREAM, IPPROTO_TCP);
-  if (_handle == -1)
-    return false;
-
   int one = 1;
   setsockopt(_handle, SOL_SOCKET, SO_REUSEADDR, &one, sizeof one);
+  int r = ::bind(_handle, (const struct sockaddr *)sa, sizeof *sa);
+  _local_addr = *(const struct sockaddr_storage *)sa;
+  return r == 0;
+}
 
-  if (bind(_handle, sa, len) == -1) {
-    perror(__func__);
-    close(_handle);
-    _handle = -1;
-    return false;
-  }
-
+bool Sock::listen()
+{
   if (::listen(_handle, 1) == -1) {
     perror(__func__);
     close(_handle);

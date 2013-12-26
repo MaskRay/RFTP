@@ -21,7 +21,8 @@ int FTP::close()
 {
   if (_connected) {
     _logged_in = false;
-    send_receive("QUIT");
+    _ctrl->printf("QUIT\r\n");
+    _ctrl->flush();
     delete _ctrl;
     _ctrl = NULL;
     delete _data;
@@ -192,7 +193,7 @@ int FTP::init_data()
       memcpy(&((struct sockaddr_in *)&sa)->sin_port, addr_port + 4, 2);
     }
 
-    if (! _data->connect((struct sockaddr *)&sa, sizeof sa)) {
+    if (! _data->connect(&sa)) {
       err("Failed to connect to address returned by PASV/EPSV\n");
       delete _data;
       _data = NULL;
@@ -445,7 +446,6 @@ int FTP::open(const char *uri)
 {
   if (connected())
     close();
-  _ctrl = new Sock;
 
   Host host(uri);
   if (! host.lookup()) {
@@ -453,7 +453,11 @@ int FTP::open(const char *uri)
     return 1;
   }
 
-  if (! _ctrl->connect(host._addr->ai_addr, host._addr->ai_addrlen))
+  struct sockaddr_storage sa;
+  memset(&sa, 0, sizeof sa);
+  memcpy(&sa, host._addr->ai_addr, sizeof(sockaddr));
+  _ctrl = new Sock(host._addr->ai_family);
+  if (! _ctrl->connect(&sa))
     return 1;
   read_reply();
   if (_code == 120)

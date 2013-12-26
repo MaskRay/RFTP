@@ -25,7 +25,6 @@ int main(int argc, char *argv[])
     {NULL, 0, 0, 0},
   };
 
-  Sock sock;
   bool daemon = true;
   int port = 21;
   int c;
@@ -45,20 +44,23 @@ int main(int argc, char *argv[])
     case 'q':
       break;
     case '?':
-      goto exit_help;
+      help(stderr, argv[0]);
+      return 1;
     }
   }
 
-  if (optind >= argc)
-    goto exit_help;
+  if (optind >= argc) {
+    help(stderr, argv[0]);
+    return 1;
+  }
 
-  struct sockaddr_in sa;
+  struct sockaddr_storage sa;
   memset(&sa, 0, sizeof sa);
-  sa.sin_family = AF_INET;
-  sa.sin_addr.s_addr = htonl(INADDR_ANY);
-  sa.sin_port = htons(port);
-
-  if (! sock.listen((struct sockaddr *)&sa, sizeof sa))
+  ((struct sockaddr_in *)&sa)->sin_family = AF_INET;
+  ((struct sockaddr_in *)&sa)->sin_addr.s_addr = htonl(INADDR_ANY);
+  ((struct sockaddr_in *)&sa)->sin_port = htonl(port);
+  Sock sock(AF_INET);
+  if (! sock.bind(&sa) || ! sock.listen())
     goto exit;
 
   for(;;) {
@@ -76,8 +78,4 @@ int main(int argc, char *argv[])
 
 exit:
   return 2;
-
-exit_help:
-  help(stderr, argv[0]);
-  return 1;
 }

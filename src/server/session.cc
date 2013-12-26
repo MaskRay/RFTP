@@ -12,6 +12,42 @@ Session::~Session()
   _data = NULL;
 }
 
+int Session::get_passive_port()
+{
+  static pthread_mutex_t mut = PTHREAD_MUTEX_INITIALIZER;
+  pthread_mutex_lock(&mut);
+  int port = rand() % 64512 + 1024;
+  pthread_mutex_unlock(&mut);
+  return port;
+}
+
+bool Session::set_pasv()
+{
+  if (_data)
+    return true;
+  bool ipv6 = _ctrl->_local_addr.ss_family == AF_INET6;
+
+  _data = _ctrl->dup();
+  struct sockaddr_storage sa;
+  memcpy(&sa, &_ctrl->_local_addr, sizeof sa);
+  for(;;) {
+    if (ipv6)
+      ((struct sockaddr_in6 *)&sa)->sin6_port = htons(get_passive_port());
+    else
+      ((struct sockaddr_in *)&sa)->sin_port = htons(get_passive_port());
+    if (_data->bind(&sa))
+      break;
+    if (errno != EADDRINUSE) {
+      send(500, "Failed to bind: %d", errno);
+      delete _data;
+      _data = NULL;
+      return false;
+    }
+  }
+
+  return 0;
+}
+
 void Session::send(int code, const char *fmt, ...)
 {
   _ctrl->printf("%d ", code);
@@ -23,9 +59,9 @@ void Session::send(int code, const char *fmt, ...)
   _ctrl->flush();
 }
 
-void Session::send_200()
+void Session::send_ok(int code)
 {
-  send(200, "Command successful");
+  send(code, "Command successful");
 }
 
 void Session::send_501()
@@ -96,14 +132,31 @@ void Session::parse()
 
 void Session::do_cdup(int argc, char *argv[])
 {
+  char *args[2] = {strdup(argv[0]), strdup("..")};
+  do_cwd(2, args);
+  free(args[0]);
+  free(args[1]);
 }
 
 void Session::do_cwd(int argc, char *argv[])
 {
+  char buf[BUF_SIZE];
+  struct stat statbuf;
+  getcwd(buf, BUF_SIZE);
+  if (stat(argv[1], &statbuf) == -1)
+    send(550, "\"%s\": No such file or directory", argv[1]);
+  else if (! S_ISDIR(statbuf.st_mode))
+    send(550, "\"%s\": Target is not a directory", argv[1]);
+  else if (chdir(argv[1]) == -1)
+    send(550, "\"%s\": %s", strerror(errno));
+  else
+    send_ok(250);
 }
 
 void Session::do_list(int argc, char *argv[])
 {
+  pid_t pid = fork();
+  if (pid) return;
 }
 
 void Session::do_mkd(int argc, char *argv[])
@@ -112,7 +165,7 @@ void Session::do_mkd(int argc, char *argv[])
 
 void Session::do_noop(int argc, char *argv[])
 {
-  send_200();
+  send_ok(200);
 }
 
 void Session::do_pass(int argc, char *argv[])
@@ -122,6 +175,11 @@ void Session::do_pass(int argc, char *argv[])
 
 void Session::do_pasv(int argc, char *argv[])
 {
+  if (set_pasv()) {
+    auto *a = (unsigned char *)&((struct sockaddr_in *)&_data->_local_addr)->sin_addr;
+    auto *p = (unsigned char *)&((struct sockaddr_in *)&_data->_local_addr)->sin_port;
+    send(227, "Enter Passive Mode (%d,%d,%d,%d,%d,%d)", a[0], a[1], a[2], a[3], p[0], p[1]);
+  }
 }
 
 void Session::do_port(int argc, char *argv[])
@@ -130,7 +188,9 @@ void Session::do_port(int argc, char *argv[])
 
 void Session::do_pwd(int argc, char *argv[])
 {
-  send(257, "\"%s\" is the current directory", argv[1]);
+  char buf[BUF_SIZE];
+  getcwd(buf, BUF_SIZE);
+  send(257, "\"%s\" is the current directory", buf);
 }
 
 void Session::do_quit(int argc, char *argv[])

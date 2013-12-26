@@ -4,15 +4,16 @@
 class Sock
 {
 public:
-  Sock();
+  Sock(int family);
   ~Sock();
-  bool connect(const struct sockaddr *sa, socklen_t len);
+  bool connect(const struct sockaddr_storage *sa);
   bool create_streams(const char *in_mode, const char *out_mode);
   void destroy_streams();
   Sock *dup();
   Sock *server_accept();
   bool accept(bool passive);
-  bool listen(const struct sockaddr *sa, socklen_t len);
+  bool bind(const struct sockaddr_storage *sa);
+  bool listen();
   ssize_t read(void *buf, size_t cnt);
   ssize_t write(void *buf, size_t cnt);
   int fputc(int c);
@@ -25,11 +26,11 @@ public:
   int eof();
   char *printable_local();
 
-  bool _connected;
+  bool _connected = false;
   struct sockaddr_storage _local_addr;
   struct sockaddr_storage _remote_addr;
 protected:
   const char *get_reply_text();
   int _handle;
-  FILE *fin, *fout;
+  FILE *fin = NULL, *fout = NULL;
 };

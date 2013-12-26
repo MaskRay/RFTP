@@ -13,6 +13,7 @@ public:
   Session();
   ~Session();
   void loop();
+  bool set_pasv();
 
   struct Command {
     const char *name;
@@ -38,7 +39,7 @@ public:
   CC(user);
 
   Command cmds[17] = {
-    CM("CDUP", cdup, ARG_STRING),
+    CM("CDUP", cdup, ARG_NONE),
     CM("CWD",  cwd,  ARG_STRING),
     CM("LIST", list, ARG_OPT_STRING),
     CM("MKD",  mkd,  ARG_STRING),
@@ -58,11 +59,13 @@ public:
   };
 
   static void *create(void *);
+  bool _pasv = false;
 
 protected:
+  int get_passive_port();
   void parse();
   void send(int code, const char *msg, ...);
-  void send_200();
+  void send_ok(int code);
   void send_501();
 };
 
