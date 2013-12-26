@@ -315,6 +315,10 @@ void Session::do_mdtm(int argc, char *argv[])
 
 void Session::do_mkd(int argc, char *argv[])
 {
+  if (mkdir(argv[1], 0777) == -1)
+    send(550, "\"%s\": %s", argv[1], strerror(errno));
+  else
+    send(257, "Directory successfully created");
 }
 
 void Session::do_noop(int argc, char *argv[])
@@ -406,6 +410,10 @@ void Session::do_retr(int argc, char *argv[])
 
 void Session::do_rmd(int argc, char *argv[])
 {
+  if (rmdir(argv[1]) == -1)
+    send(550, "\"%s\": %s", argv[1], strerror(errno));
+  else
+    send_ok(250);
 }
 
 void Session::do_size(int argc, char *argv[])
@@ -423,7 +431,7 @@ void Session::do_stor(int argc, char *argv[])
 {
   FILE *f = fopen(argv[1], "w");
   if (! f) {
-    send(550, "\"%s\": Failed", argv[1]);
+    send(550, "\"%s\": %s", argv[1], strerror(errno));
     return;
   }
 

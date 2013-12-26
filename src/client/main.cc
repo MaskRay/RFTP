@@ -13,7 +13,7 @@ void help(FILE *fout, const char *argv0)
 {
   fprintf(fout, "FTP client.\n");
   fprintf(fout, "\n");
-  fprintf(fout, "Usage: %s [options]\n", argv0);
+  fprintf(fout, "Usage: %s [options] [uri]\n", argv0);
   fprintf(fout, "Options:\n");
   fprintf(fout, "  -d, --debug     \n");
   fprintf(fout, "  -h, --help      display this help and exit\n");
@@ -53,10 +53,9 @@ int main(int argc, char *argv[])
 
   init_readline();
 
-  for (; optind < argc; optind++) {
-  }
-
   CMD cmd;
+  if (optind < argc)
+    cmd.ftp.open(argv[optind]);
   cmd.loop();
   return 0;
 }

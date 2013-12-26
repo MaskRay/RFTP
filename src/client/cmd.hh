@@ -67,14 +67,14 @@ public:
     {NULL, NULL},
   };
 
+  FTP ftp;
+
 protected:
   void min_args(const vector<string> &args, size_t num);
   void max_args(const vector<string> &args, size_t num);
   void require_logged_in();
   void require_connected();
   const Command *find_cmd(const char *cmd);
-
-  FTP ftp;
 };
 
 void exit_all();

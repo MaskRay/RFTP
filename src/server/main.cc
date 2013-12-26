@@ -62,6 +62,8 @@ int main(int argc, char *argv[])
     help(stderr, argv[0]);
     return 1;
   }
+  if (chdir(argv[optind]) == -1)
+    return perror(""), 0;
 
   srand(time(NULL));
 
