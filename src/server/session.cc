@@ -14,13 +14,6 @@ Session::~Session()
   _data = NULL;
 }
 
-void Session::close_data()
-{
-  delete _data;
-  _data = NULL;
-  _passive = false;
-}
-
 bool Session::set_epsv()
 {
   close_data();
@@ -401,9 +394,9 @@ void Session::do_retr(int argc, char *argv[])
     return;
   }
 
-  if (! init_data(_type))
+  if (! init_data(_data_type))
     return;
-  if (_type == IMAGE)
+  if (_data_type == IMAGE)
     send_binary(f);
   else
     send_ascii(f);
@@ -423,7 +416,7 @@ void Session::do_rmd(int argc, char *argv[])
 void Session::do_size(int argc, char *argv[])
 {
   struct stat statbuf;
-  if (_type != IMAGE)
+  if (_data_type != IMAGE)
     send(550, "SIZE not allowed in ASCII mode");
   else if (stat(argv[1], &statbuf) == -1)
     send(550, "\"%s\": No such file or directory", argv[1]);
@@ -439,9 +432,9 @@ void Session::do_stor(int argc, char *argv[])
     return;
   }
 
-  if (! init_data(_type))
+  if (! init_data(_data_type))
     return;
-  if (_type == IMAGE)
+  if (_data_type == IMAGE)
     recv_binary(f);
   else
     recv_ascii(f);
@@ -453,10 +446,10 @@ void Session::do_stor(int argc, char *argv[])
 void Session::do_type(int argc, char *argv[])
 {
   if (! strcasecmp(argv[1], "A")) {
-    _type = ASCII;
+    _data_type = ASCII;
     send(200, "Type set to A");
   } else if (! strcasecmp(argv[1], "I")) {
-    _type = IMAGE;
+    _data_type = IMAGE;
     send(200, "Type set to I");
   } else
     send(500, "'Type %s' not understood", argv[1]);

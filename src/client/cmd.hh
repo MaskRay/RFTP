@@ -31,6 +31,7 @@ public:
   CC(rhelp);
   CC(rmdir);
   CC(site);
+  CC(size);
 
   struct Command {
     const char *name;
@@ -39,7 +40,7 @@ public:
 
 #define CM(name, fn) {#name, &CMD::fn}
 #define CN(name) CM(name, name)
-  Command cmds[25] = {
+  Command cmds[26] = {
     CN(active),
     CN(cat),
     CM(cd, chdir),
@@ -63,6 +64,7 @@ public:
     CM(rd, rmdir),
     CN(rmdir),
     CN(site),
+    CN(size),
     CM(?, help),
     {NULL, NULL},
   };

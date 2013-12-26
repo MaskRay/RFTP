@@ -5,7 +5,8 @@ const CMD::Command *CMD_AMBIGUOUS = (CMD::Command *)-1;
 
 char *CMD::prompt()
 {
-  return readline(ftp.connected() ? (ftp.logged_in() ? gv_PS3 : gv_PS2) : gv_PS1);
+  const char *s = ftp.expand_prompt(ftp.connected() ? (ftp.logged_in() ? gv_PS3 : gv_PS2) : gv_PS1);
+  return readline(s);
 }
 
 void CMD::require_logged_in()
@@ -315,4 +316,13 @@ void CMD::site(vector<string> args)
   require_connected();
   require_logged_in();
   ftp.site(args[0].c_str());
+}
+
+void CMD::size(vector<string> args)
+{
+  min_args(args, 1);
+  max_args(args, 1);
+  require_connected();
+  require_logged_in();
+  ftp.size(args[0].c_str());
 }

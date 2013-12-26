@@ -65,11 +65,8 @@ public:
   };
 
   static void *create(void *);
-  bool _passive = false;
-  TransferMode _type = ASCII;
 
 protected:
-  void close_data();
   void send(int code, const char *msg, ...);
   void send_ok(int code);
   void send_500();

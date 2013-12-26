@@ -36,6 +36,7 @@ public:
 
   bool connected();
   bool logged_in();
+  char *expand_prompt(const char *s);
 
   bool _connected = false;
   bool _passive = true;

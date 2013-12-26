@@ -7,6 +7,36 @@ FTP::FTP() // : _ctrl(NULL), _data(NULL), _logged_in(false), _in_transfer(false)
 {
 }
 
+char *FTP::expand_prompt(const char *s)
+{
+  static char buf[MAX_REPLY];
+  int i = 0;
+  for (; *s && i < MAX_REPLY-1; s++)
+    if (*s != '%' || ! s[1])
+      buf[i++] = *s;
+    else {
+      switch (*++s) {
+      case 'u':
+        strncpy(buf+i, "dummy", MAX_REPLY-1-i);
+        break;
+      case 'p':
+        if (cur_dir)
+          strncpy(buf+i, cur_dir, MAX_REPLY-1-i);
+        break;
+      case '0': strncpy(buf+i, "\x1b[0m", MAX_REPLY-1-i); break;
+      case 'R': strncpy(buf+i, "\x1b[31;1m", MAX_REPLY-1-i); break;
+      case 'G': strncpy(buf+i, "\x1b[32;1m", MAX_REPLY-1-i); break;
+      case 'Y': strncpy(buf+i, "\x1b[33;1m", MAX_REPLY-1-i); break;
+      case 'B': strncpy(buf+i, "\x1b[34;1m", MAX_REPLY-1-i); break;
+      case 'M': strncpy(buf+i, "\x1b[35;1m", MAX_REPLY-1-i); break;
+      case 'C': strncpy(buf+i, "\x1b[36;1m", MAX_REPLY-1-i); break;
+      case 'W': strncpy(buf+i, "\x1b[37;1m", MAX_REPLY-1-i); break;
+      }
+      i += strlen(buf+i);
+    }
+  return buf;
+}
+
 bool FTP::connected()
 {
   return _ctrl && _ctrl->_connected;
@@ -102,7 +132,7 @@ void FTP::print_error()
 
 void FTP::print_reply(LogLevel level)
 {
-  print(level, "--> %s\n", _reply);
+  print(level, "<-- %s\n", _reply);
 }
 
 void FTP::print_reply()
@@ -183,17 +213,16 @@ int FTP::init_data()
       return -1;
     }
 
-    struct sockaddr_storage sa;
-    memcpy(&sa, &_ctrl->_remote_addr, sizeof sa);
-    if (ipv6) {
-      memcpy(&((struct sockaddr_in6 *)&sa)->sin6_addr, &_ctrl->_remote_addr, sizeof _ctrl->_remote_addr);
-      ((struct sockaddr_in6 *)&sa)->sin6_port = htons(ipv6_port);
-    } else {
-      memcpy(&((struct sockaddr_in *)&sa)->sin_addr, addr_port, 4);
-      memcpy(&((struct sockaddr_in *)&sa)->sin_port, addr_port + 4, 2);
+    auto sa = (struct sockaddr_in *)&_data->_remote_addr;
+    auto sa6 = (struct sockaddr_in6 *)&_data->_remote_addr;
+    if (ipv6)
+      sa6->sin6_port = htons(ipv6_port);
+    else {
+      memcpy(&sa->sin_addr, addr_port, 4);
+      memcpy(&sa->sin_port, addr_port + 4, 2);
     }
 
-    if (! _data->connect(&sa)) {
+    if (! _data->connect()) {
       err("Failed to connect to address returned by PASV/EPSV\n");
       delete _data;
       _data = NULL;
@@ -239,7 +268,9 @@ int FTP::cat(const char *path)
   if (init_receive(path, ASCII))
     return -1;
   recv_ascii(stdout);
-  return 0;
+  close_data();
+  read_reply();
+  return _code_family == C_COMPLETION ? 0 : -1;
 }
 
 int FTP::get_file(const char *in_path, const char *out_path, TransferMode mode)
@@ -264,7 +295,10 @@ int FTP::get_file(const char *in_path, const char *out_path, TransferMode mode)
   else
     recv_ascii(f);
   fclose(f);
-  return 0;
+  close_data();
+
+  read_reply();
+  return _code_family == C_COMPLETION ? 0 : -1;
 }
 
 int FTP::init_receive(const char *in_path, TransferMode mode)
@@ -374,9 +408,7 @@ int FTP::lsdir(const char *cmd, const char *path, FILE *fout)
 
   if (recv_ascii(fout))
     return -1;
-
-  delete _data;
-  _data = NULL;
+  close_data();
 
   read_reply();
   return _code_family == C_COMPLETION ? 0 : -1;
@@ -450,7 +482,7 @@ int FTP::put_file(const char *in_path, const char *out_path, TransferMode mode)
     return -1;
   }
   if (S_ISDIR(buf.st_mode)) {
-    err("%s is a directory\n", out_path);
+    err("%s is a directory\n", in_path);
     return -1;
   }
   if (access(in_path, R_OK)) {
@@ -458,7 +490,7 @@ int FTP::put_file(const char *in_path, const char *out_path, TransferMode mode)
     return -1;
   }
 
-  if (init_send(in_path, mode))
+  if (init_send(out_path, mode))
     return -1;
 
   FILE *f = fopen(in_path, "r");
@@ -471,7 +503,10 @@ int FTP::put_file(const char *in_path, const char *out_path, TransferMode mode)
   else
     send_ascii(f);
   fclose(f);
-  return 0;
+  close_data();
+
+  read_reply();
+  return _code_family == C_COMPLETION ? 0 : -1;
 }
 
 int FTP::pwd(bool log)
@@ -495,6 +530,7 @@ int FTP::site(const char *arg)
 
 ull FTP::size(const char *path)
 {
+  type(IMAGE);
   send_receive("SIZE %s", path);
   if (_code == C_NOT_IMPLEMENTED) {
     _has_size_cmd = false;
@@ -510,6 +546,9 @@ ull FTP::size(const char *path)
 
 int FTP::type(TransferMode mode)
 {
-  send_receive("TYPE %c", mode == IMAGE ? 'I' : 'A');
-  return _code_family == C_COMPLETION ? 0 : -1;
+  if (_data_type != mode) {
+    send_receive("TYPE %c", mode == IMAGE ? 'I' : 'A');
+    return _code_family == C_COMPLETION ? (_data_type = mode, 0) : -1;
+  }
+  return 0;
 }

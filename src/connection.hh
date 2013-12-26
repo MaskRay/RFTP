@@ -15,6 +15,11 @@ public:
   int send_binary(FILE *fin);
   int send_ascii(FILE *fin);
 
+  TransferMode _data_type = ASCII;
   Sock *_ctrl = NULL, *_data = NULL;
   char _reply[MAX_REPLY];
+  bool _passive = false;
+
+protected:
+  void close_data();
 };

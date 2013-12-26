@@ -1,5 +1,12 @@
 #include "connection.hh"
 
+void Connection::close_data()
+{
+  delete _data;
+  _data = NULL;
+  _passive = false;
+}
+
 int Connection::gets()
 {
   bool brk = false;
