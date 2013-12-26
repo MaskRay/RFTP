@@ -1,7 +1,6 @@
 #include "ftp.hh"
 #include "signal.hh"
 #include "host.hh"
-#include "util.hh"
 
 FTP::FTP() // : _ctrl(NULL), _data(NULL), _logged_in(false), _in_transfer(false), _interrupted(false),
   //_reply_timeout(1000)

@@ -1,5 +1,5 @@
 #pragma once
-#include "common.hh"
+#include "../common.hh"
 
 enum LogLevel {DEBUG, INFO, LOG, WARNING, ERR, CRIT};
 

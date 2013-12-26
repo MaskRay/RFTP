@@ -93,7 +93,7 @@ void CMD::loop()
     }
     free(line);
   }
-  exit_all();
+  quit(vector<string>());
 }
 
 void CMD::cdup(vector<string> args)

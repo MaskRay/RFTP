@@ -1,5 +1,5 @@
 #pragma once
-#include "common.hh"
+#include "../common.hh"
 
 extern bool gv_interrupted, gv_sighup_received, gv_in_transfer;
 extern sigjmp_buf gv_jmpbuf;

@@ -1,8 +1,8 @@
 #pragma once
-#include "common.hh"
+#include "../common.hh"
+#include "../util.hh"
 #include "ftp.hh"
 #include "log.hh"
-#include "util.hh"
 #include "gv.hh"
 
 #define CC(name) void name(vector<string> args)

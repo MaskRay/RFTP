@@ -1,5 +1,6 @@
 #pragma once
-#include "common.hh"
+#include "../common.hh"
+#include "../util.hh"
 #include "sock.hh"
 #include "log.hh"
 

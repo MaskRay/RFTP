@@ -1,5 +1,5 @@
 #pragma once
-#include "common.hh"
+#include "../common.hh"
 
 void set_signal(int signum, sighandler_t handler);
 void set_signal_with_mask(int signum, sighandler_t handler, int block);

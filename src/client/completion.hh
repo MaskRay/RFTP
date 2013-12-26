@@ -1,4 +1,4 @@
 #pragma once
-#include "common.hh"
+#include "../common.hh"
 
 void init_readline();

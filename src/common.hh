@@ -31,5 +31,3 @@ using namespace std;
 typedef unsigned long long ull;
 
 const int BUF_SIZE = 4096;
-
-void exit_all();
