@@ -23,6 +23,7 @@ public:
 
   CC(cdup);
   CC(cwd);
+  CC(eprt);
   CC(epsv);
   CC(list);
   CC(mdtm);
@@ -40,9 +41,10 @@ public:
   CC(type);
   CC(user);
 
-  Command cmds[19] = {
+  Command cmds[20] = {
     CM("CDUP", cdup, ARG_NONE),
     CM("CWD",  cwd,  ARG_STRING),
+    CM("EPRT", eprt, ARG_STRING),
     CM("EPSV", epsv, ARG_NONE),
     CM("LIST", list, ARG_OPT_STRING),
     CM("MKD",  mkd,  ARG_STRING),
@@ -68,7 +70,6 @@ public:
 
 protected:
   void close_data();
-  int get_passive_port();
   void send(int code, const char *msg, ...);
   void send_ok(int code);
   void send_500();

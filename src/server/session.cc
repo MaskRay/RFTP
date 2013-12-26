@@ -1,3 +1,4 @@
+#include <netinet/in.h>
 #include "../log.hh"
 #include "session.hh"
 
@@ -20,15 +21,6 @@ void Session::close_data()
   _passive = false;
 }
 
-int Session::get_passive_port()
-{
-  static pthread_mutex_t mut = PTHREAD_MUTEX_INITIALIZER;
-  pthread_mutex_lock(&mut);
-  int port = rand() % 64512 + 1024;
-  pthread_mutex_unlock(&mut);
-  return port;
-}
-
 bool Session::set_epsv()
 {
   close_data();
@@ -36,6 +28,7 @@ bool Session::set_epsv()
 
   _data = new Sock(AF_INET6);
   auto sa6 = (struct sockaddr_in6 *)&_data->_local_addr;
+  sa6->sin6_family = AF_INET6;
   sa6->sin6_addr = in6addr_any;
   sa6->sin6_port = 0;
   if (! _data->bind() || ! _data->listen()) {
@@ -179,19 +172,23 @@ bool Session::init_data(TransferMode type)
       send(500, "PORT/EPSV");
       return false;
     }
+    bool ipv6 = _data->_remote_addr.ss_family == AF_INET6;
     auto sa = (struct sockaddr_in *)&_data->_local_addr;
     auto sa6 = (struct sockaddr_in6 *)&_data->_local_addr;
-    sa->sin_port = htons(ntohs(sa->sin_port) - 1);
-    if (! _data->bind()) {
+    if (ipv6) {
+      sa6->sin6_addr = in6addr_any;
+      sa6->sin6_port = htons(ntohs(((struct sockaddr_in6 *)&_ctrl->_local_addr)->sin6_port) - 1);
+    } else {
+      sa->sin_addr.s_addr = INADDR_ANY;
+      sa->sin_port = htons(ntohs(((struct sockaddr_in *)&_ctrl->_local_addr)->sin_port) - 1);
+    }
+    if (! _data->bind() || ! _data->connect()) {
       send(425, "Unable to bind ftp-data port");
       close_data();
       return false;
     }
-    if (! _data->connect()) {
-      send(425, "Unable to build data connection");
-      close_data();
-      return false;
-    }
+    _data->printf("sdafd");
+    _data->flush();
   }
   return true;
 }
@@ -219,10 +216,46 @@ void Session::do_cwd(int argc, char *argv[])
     send_ok(250);
 }
 
+void Session::do_eprt(int argc, char *argv[])
+{
+  close_data();
+
+  int i = 0;
+  sockaddr_storage sa;
+  sockaddr_in6 *sa6 = (sockaddr_in6 *)&sa;
+  char buf[1000];
+  for (char *p = argv[1]; ; p = NULL) {
+    char *q = strtok(p, "|");
+    if (! q) break;
+    switch (i) {
+    case 0:
+      sa.ss_family = atoi(q) == 1 ? AF_INET : AF_INET6;
+      break;
+    case 1:
+      if (inet_pton(sa.ss_family, q, &sa6->sin6_addr) != 1)
+        goto s501;
+      break;
+    case 2:
+      sa6->sin6_port = htons(atoi(q));
+      break;
+    }
+    i++;
+  }
+
+  _data = new Sock(sa.ss_family);
+  _data->_remote_addr = sa;
+  send_ok(200);
+  return;
+
+s501:
+  send_501();
+  return;
+}
+
 void Session::do_epsv(int argc, char *argv[])
 {
   if (set_epsv()) {
-    int p = ((struct sockaddr_in6 *)&_data->_local_addr)->sin6_port;
+    uint16_t p = ntohs(((struct sockaddr_in6 *)&_data->_local_addr)->sin6_port);
     send(227, "Entering Extended Passive Mode (|||%d|)", p);
   }
 }
@@ -247,13 +280,17 @@ void Session::do_list(int argc, char *argv[])
     return;
 
   if (pid) {
+    char c;
     ssize_t n;
     close(pi[1]);
-    while ((n = read(pi[0], buf, BUF_SIZE)) > 0)
-      if (_data->write(buf, n) == -1)
+    while ((n = read(pi[0], &c, 1)) > 0) {
+      if (c == '\n')
+        if (_data->fputc('\r') == -1)
+          break;
+      if (_data->fputc(c) == -1)
         break;
-    delete _data;
-    _data = NULL;
+    }
+
     close(pi[0]);
     waitpid(pid, NULL, 0);
   } else {
@@ -265,6 +302,7 @@ void Session::do_list(int argc, char *argv[])
   }
 
   send(226, "Transfer complete");
+  close_data();
 }
 
 void Session::do_mdtm(int argc, char *argv[])
@@ -363,9 +401,8 @@ void Session::do_retr(int argc, char *argv[])
   else
     send_ascii(f);
   fclose(f);
-  delete _data;
-  _data = NULL;
   send(226, "Transfer complete");
+  close_data();
 }
 
 void Session::do_rmd(int argc, char *argv[])

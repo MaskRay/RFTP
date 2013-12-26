@@ -1,7 +1,12 @@
 #include "sock.hh"
 
 Sock::Sock(int family) : _handle(::socket(family, SOCK_STREAM, IPPROTO_TCP))
-{} 
+{
+  memset(&_local_addr, 0, sizeof _local_addr);
+  _local_addr.ss_family = family;
+  memset(&_remote_addr, 0, sizeof _remote_addr);
+  _remote_addr.ss_family = family;
+}
 
 Sock::~Sock()
 {
