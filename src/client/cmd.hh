@@ -13,6 +13,7 @@ public:
   void execute(char *line);
   char *prompt();
 
+  CC(active);
   CC(cdup);
   CC(chdir);
   CC(close);
@@ -22,6 +23,7 @@ public:
   CC(list);
   CC(mkdir);
   CC(open);
+  CC(passive);
   CC(put);
   CC(pwd);
   CC(quit);
@@ -35,7 +37,8 @@ public:
 
 #define CM(name, fn) {#name, &CMD::fn}
 #define CN(name) CM(name, name)
-  Command cmds[21] = {
+  Command cmds[23] = {
+    CN(active),
     CM(cd, chdir),
     CN(cdup),
     CM(connect, open),
@@ -49,6 +52,7 @@ public:
     CM(md, mkdir),
     CN(mkdir),
     CN(open),
+    CN(passive),
     CN(put),
     CN(pwd),
     CN(quit),

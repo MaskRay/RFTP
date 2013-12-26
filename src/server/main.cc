@@ -54,11 +54,13 @@ int main(int argc, char *argv[])
     return 1;
   }
 
+  srand(time(NULL));
+
   struct sockaddr_storage sa;
   memset(&sa, 0, sizeof sa);
   ((struct sockaddr_in *)&sa)->sin_family = AF_INET;
   ((struct sockaddr_in *)&sa)->sin_addr.s_addr = htonl(INADDR_ANY);
-  ((struct sockaddr_in *)&sa)->sin_port = htonl(port);
+  ((struct sockaddr_in *)&sa)->sin_port = htons(port);
   Sock sock(AF_INET);
   if (! sock.bind(&sa) || ! sock.listen())
     goto exit;

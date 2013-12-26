@@ -90,16 +90,14 @@ Sock *Sock::dup()
 bool Sock::accept(bool passive)
 {
   if (! passive) {
-    struct sockaddr_storage sa;
-    socklen_t l = sizeof sa;
-    int r = ::accept(_handle, (struct sockaddr *)&sa, &l);
+    socklen_t l = sizeof _remote_addr;
+    int r = ::accept(_handle, (struct sockaddr *)&_remote_addr, &l);
     close(_handle);
     _handle = r;
     if (r == -1) {
       perror(__func__);
       return false;
     }
-    memcpy(&_local_addr, &sa, sizeof sa);
   }
 
   if (! create_streams("r", "w")) {
@@ -131,13 +129,19 @@ Sock *Sock::server_accept()
   return r;
 }
 
+bool Sock::bind()
+{
+  return bind(&_local_addr);
+}
+
 bool Sock::bind(const struct sockaddr_storage *sa)
 {
   int one = 1;
   setsockopt(_handle, SOL_SOCKET, SO_REUSEADDR, &one, sizeof one);
   int r = ::bind(_handle, (const struct sockaddr *)sa, sizeof *sa);
-  _local_addr = *(const struct sockaddr_storage *)sa;
-  return r == 0;
+  if (r == -1) return false;
+  socklen_t salen = sizeof *sa;
+  return getsockname(_handle, (struct sockaddr *)&_local_addr, &salen) == 0;
 }
 
 bool Sock::listen()

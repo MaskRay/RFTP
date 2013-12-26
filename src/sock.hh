@@ -12,6 +12,7 @@ public:
   Sock *dup();
   Sock *server_accept();
   bool accept(bool passive);
+  bool bind();
   bool bind(const struct sockaddr_storage *sa);
   bool listen();
   ssize_t read(void *buf, size_t cnt);

@@ -38,6 +38,7 @@ public:
   bool logged_in();
 
   bool _connected = false;
+  bool _passive = true;
 
 protected:
   int gets();
@@ -48,7 +49,7 @@ protected:
   int init_data();
   int init_receive(const char *in_path, TransferMode mode);
   int init_send(const char *out_path, TransferMode mode);
-  bool passive() { return true; } // TODO
+  bool passive() { return _passive; }
   const char *get_reply_text();
   template <typename... Ts>
     int send_receive(const char *fmt, Ts... ts);

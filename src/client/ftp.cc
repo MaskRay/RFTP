@@ -172,7 +172,7 @@ const char *FTP::get_reply_text()
 int FTP::init_data()
 {
   _data = _ctrl->dup();
-  bool ipv6 = _data->_remote_addr.ss_family != AF_INET;
+  bool ipv6 = _data->_remote_addr.ss_family == AF_INET6;
 
   if (passive()) {
     unsigned char addr_port[6];
@@ -200,23 +200,30 @@ int FTP::init_data()
       return -1;
     }
   } else {
-    auto *sa = (const struct sockaddr *)&_data->_local_addr;
-    if (sa->sa_family == AF_INET6) {
-      char *addr = _data->printable_local();
-      send_receive("EPRT |2|%s|%u|", addr, ntohs(((struct sockaddr_in6 *)sa)->sin6_port));
-      free(addr);
-    } else if (sa->sa_family == AF_INET) {
-      auto *a = (unsigned char *)sa;
-      auto *p = (unsigned char *)&((struct sockaddr_in *)&_data->_local_addr)->sin_port;
-      send_receive("PORT %d,%d,%d,%d,%d,%d", a[0], a[1], a[2], a[3], p[0], p[1]);
-    } else {
-      err("Cannot listen on unknown family\n");
+    auto sa = (struct sockaddr_in *)&_data->_local_addr;
+    auto sa6 = (struct sockaddr_in6 *)&_data->_local_addr;
+    if (ipv6)
+      sa6->sin6_port = 0;
+    else
+      sa->sin_port = 0;
+    if (! _data->bind() || ! _data->listen()) {
+      err("bind/listen failed\n");
       delete _data;
       _data = NULL;
       return -1;
     }
 
-    if (_code_family == C_COMPLETION) {
+    if (ipv6) {
+      char *addr = _data->printable_local();
+      send_receive("EPRT |2|%s|%u|", addr, ntohs(sa6->sin6_port));
+      free(addr);
+    } else {
+      auto *a = (unsigned char *)&sa->sin_addr;
+      auto *p = (unsigned char *)&sa->sin_port;
+      send_receive("PORT %d,%d,%d,%d,%d,%d", a[0], a[1], a[2], a[3], p[0], p[1]);
+    }
+
+    if (_code_family != C_COMPLETION) {
       err("PORT/EPRT failed\n");
       delete _data;
       _data = NULL;

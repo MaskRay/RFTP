@@ -45,7 +45,7 @@ bool Session::set_pasv()
     }
   }
 
-  return 0;
+  return _pasv = true;
 }
 
 void Session::send(int code, const char *fmt, ...)
@@ -155,8 +155,27 @@ void Session::do_cwd(int argc, char *argv[])
 
 void Session::do_list(int argc, char *argv[])
 {
+  char buf[BUF_SIZE];
+  int pi[2];
+  if (pipe(pi) == -1)
+    return;
   pid_t pid = fork();
-  if (pid) return;
+  if (pid == -1)
+    return;
+  if (pid) {
+    ssize_t n;
+    close(pi[1]);
+    while ((n = read(pi[0], buf, BUF_SIZE)) > 0)
+      if (_data->write(buf, n) == -1)
+        break;
+    close(pi[0]);
+    waitpid(pid, NULL, 0);
+  } else {
+    close(pi[0]);
+    dup2(pi[1], 1);
+    close(pi[1]);
+    execlp("ls", "ls", "-l", NULL);
+  }
 }
 
 void Session::do_mkd(int argc, char *argv[])

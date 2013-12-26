@@ -96,6 +96,14 @@ void CMD::loop()
   quit(vector<string>());
 }
 
+void CMD::active(vector<string> args)
+{
+  max_args(args, 0);
+  require_connected();
+  require_logged_in();
+  ftp._passive = false;
+}
+
 void CMD::cdup(vector<string> args)
 {
   max_args(args, 0);
@@ -201,6 +209,14 @@ void CMD::open(vector<string> args)
   max_args(args, 1);
 
   ftp.open(args[0].c_str());
+}
+
+void CMD::passive(vector<string> args)
+{
+  max_args(args, 0);
+  require_connected();
+  require_logged_in();
+  ftp._passive = true;
 }
 
 void CMD::put(vector<string> args)
