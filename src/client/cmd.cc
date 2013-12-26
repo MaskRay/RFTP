@@ -209,7 +209,7 @@ void CMD::list(vector<string> args)
 {
   require_connected();
   require_logged_in();
-  ftp.lsdir("LIST", args.size() == 0 ? "" : args[0].c_str(), stdout);
+  ftp.lsdir("LIST", args.size() == 0 ? NULL : args[0].c_str(), stdout);
 }
 
 void CMD::open(vector<string> args)

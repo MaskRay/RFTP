@@ -162,10 +162,6 @@ bool Session::init_data(TransferMode type)
       close_data();
       return false;
     }
-    if (type == IMAGE)
-      send(150, "Opening IMAGE mode data connection");
-    else
-      send(150, "Opening ASCII mode data connection for file list");
   } else {
     if (! _data) {
       send(500, "PORT/EPSV");
@@ -181,14 +177,21 @@ bool Session::init_data(TransferMode type)
       sa->sin_addr.s_addr = INADDR_ANY;
       sa->sin_port = htons(ntohs(((struct sockaddr_in *)&_ctrl->_local_addr)->sin_port) - 1);
     }
-    if (! _data->bind() || ! _data->connect()) {
+    if (! _data->bind()) {
       send(425, "Unable to bind ftp-data port");
       close_data();
       return false;
     }
-    _data->printf("sdafd");
-    _data->flush();
+    if (! _data->connect()) {
+      send(425, "Unable to connect");
+      close_data();
+      return false;
+    }
   }
+  if (type == IMAGE)
+    send(150, "Opening IMAGE mode data connection");
+  else
+    send(150, "Opening ASCII mode data connection");
   return true;
 }
 
@@ -357,14 +360,15 @@ void Session::do_port(int argc, char *argv[])
     if (unsigned(d) >= 256)
       goto s501;
     if (i < 4)
-      addr[i++] = d;
+      addr[i] = d;
     else if (i < 6)
-      port[i++-4] = d;
+      port[i-4] = d;
     else
       goto s501;
+    i++;
   }
 
-  _data = _ctrl->dup();
+  _data = new Sock(AF_INET);
   memcpy(&((struct sockaddr_in *)&_data->_remote_addr)->sin_addr, addr, 4);
   memcpy(&((struct sockaddr_in *)&_data->_remote_addr)->sin_port, port, 2);
   send_ok(200);

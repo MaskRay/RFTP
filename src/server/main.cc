@@ -11,8 +11,8 @@ void help(FILE *fout, const char *argv0)
   fprintf(fout, "  -d, --debug     \n");
   fprintf(fout, "  -n, --nodaemon  Do not background the process or disassociate it from the controlling terminal\n");
   fprintf(fout, "  -p, --port      listening port\n");
-  fprintf(fout, "  -h, --help      display this help and exit\n");
   fprintf(fout, "  -q, --quiet     \n");
+  fprintf(fout, "  -h, --help      display this help and exit\n");
   fprintf(fout, "\n");
   fprintf(fout, "Report bugs to i@maskray.me\n");
 }
@@ -23,17 +23,17 @@ int main(int argc, char *argv[])
     {"ipv6", no_argument, 0, '6'},
     {"debug", no_argument, 0, 'd'},
     {"nodaemon", no_argument, 0, 'n'},
-    {"help", no_argument, 0, 'h'},
     {"port", required_argument, 0, 'p'},
     {"quiet", no_argument, 0, 'q'},
+    {"help", no_argument, 0, 'h'},
     {NULL, 0, 0, 0},
   };
 
-  bool daemon = true;
+  bool nodaemon = false;
   bool ipv6 = false;
   int port = 21;
   int c;
-  while ((c = getopt_long(argc, argv, "6dhnp:q", longopts, NULL)) != -1) {
+  while ((c = getopt_long(argc, argv, "6dnp:qh", longopts, NULL)) != -1) {
     switch (c) {
     case '6':
       ipv6 = true;
@@ -41,17 +41,18 @@ int main(int argc, char *argv[])
     case 'd':
       gv_log_level = DEBUG;
       break;
-    case 'h':
-      help(stdout, argv[0]);
-      return 0;
     case 'n':
-      daemon = false;
+      nodaemon = true;
       break;
     case 'p':
       port = atoi(optarg);
       break;
     case 'q':
+      gv_log_level = WARNING;
       break;
+    case 'h':
+      help(stdout, argv[0]);
+      return 0;
     case '?':
       help(stderr, argv[0]);
       return 1;
@@ -64,6 +65,8 @@ int main(int argc, char *argv[])
   }
   if (chdir(argv[optind]) == -1)
     return perror(""), 0;
+  if (! nodaemon)
+    daemon(1, 0);
 
   srand(time(NULL));
 
