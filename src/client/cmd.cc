@@ -104,6 +104,15 @@ void CMD::active(vector<string> args)
   ftp._passive = false;
 }
 
+void CMD::cat(vector<string> args)
+{
+  min_args(args, 1);
+  max_args(args, 1);
+  require_connected();
+  require_logged_in();
+  ftp.cat(args[0].c_str());
+}
+
 void CMD::cdup(vector<string> args)
 {
   max_args(args, 0);
@@ -297,4 +306,13 @@ void CMD::rmdir(vector<string> args)
   require_connected();
   require_logged_in();
   ftp.rmdir(args[0].c_str());
+}
+
+void CMD::site(vector<string> args)
+{
+  min_args(args, 1);
+  max_args(args, 1);
+  require_connected();
+  require_logged_in();
+  ftp.site(args[0].c_str());
 }

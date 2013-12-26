@@ -14,6 +14,7 @@ public:
   char *prompt();
 
   CC(active);
+  CC(cat);
   CC(cdup);
   CC(chdir);
   CC(close);
@@ -29,6 +30,7 @@ public:
   CC(quit);
   CC(rhelp);
   CC(rmdir);
+  CC(site);
 
   struct Command {
     const char *name;
@@ -37,8 +39,9 @@ public:
 
 #define CM(name, fn) {#name, &CMD::fn}
 #define CN(name) CM(name, name)
-  Command cmds[23] = {
+  Command cmds[25] = {
     CN(active),
+    CN(cat),
     CM(cd, chdir),
     CN(cdup),
     CM(connect, open),
@@ -59,6 +62,7 @@ public:
     CN(rhelp),
     CM(rd, rmdir),
     CN(rmdir),
+    CN(site),
     CM(?, help),
     {NULL, NULL},
   };

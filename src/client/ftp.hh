@@ -15,6 +15,7 @@ class FTP : public Connection {
 public:
   FTP();
 
+  int cat(const char *path);
   int chdir(const char *path);
   int cdup();
   int get_file(const char *in_path, const char *out_path, TransferMode mode);
@@ -28,6 +29,7 @@ public:
   int close();
   int rmdir(const char *path);
   ull size(const char *path);
+  int site(const char *arg);
   int type(TransferMode mode);
 
   int login();

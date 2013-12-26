@@ -42,8 +42,7 @@ bool Session::set_epsv()
 
 bool Session::set_pasv()
 {
-  if (_data)
-    return true;
+  close_data();
 
   _data = new Sock(AF_INET);
   auto sa = (struct sockaddr_in *)&_data->_local_addr;

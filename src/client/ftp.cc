@@ -59,7 +59,7 @@ int FTP::send_receive(LogLevel level, const char *fmt, ...)
   _ctrl->flush();
 
   va_start(ap, fmt);
-  debug("< ");
+  debug("--> ");
   debug(fmt, ap);
   debug("\n");
   va_end(ap);
@@ -102,12 +102,12 @@ void FTP::print_error()
 
 void FTP::print_reply(LogLevel level)
 {
-  print(level, "> %s\n", _reply);
+  print(level, "--> %s\n", _reply);
 }
 
 void FTP::print_reply()
 {
-  log("> %s\n", _reply);
+  log("<-- %s\n", _reply);
 }
 
 int FTP::read_reply(LogLevel level)
@@ -234,6 +234,14 @@ int FTP::init_data()
   return 0;
 }
 
+int FTP::cat(const char *path)
+{
+  if (init_receive(path, ASCII))
+    return -1;
+  recv_ascii(stdout);
+  return 0;
+}
+
 int FTP::get_file(const char *in_path, const char *out_path, TransferMode mode)
 {
   struct stat buf;
@@ -256,7 +264,7 @@ int FTP::get_file(const char *in_path, const char *out_path, TransferMode mode)
   else
     recv_ascii(f);
   fclose(f);
-  return -1;
+  return 0;
 }
 
 int FTP::init_receive(const char *in_path, TransferMode mode)
@@ -463,13 +471,13 @@ int FTP::put_file(const char *in_path, const char *out_path, TransferMode mode)
   else
     send_ascii(f);
   fclose(f);
-  return -1;
+  return 0;
 }
 
 int FTP::pwd(bool log)
 {
   send_receive("PWD");
-  if (log)
+  if (log && gv_log_level < DEBUG)
     print_reply();
 }
 
@@ -477,6 +485,12 @@ int FTP::rmdir(const char *path)
 {
   send_receive("RMD %s", path);
   return _code_family == C_COMPLETION ? 0 : -1;
+}
+
+int FTP::site(const char *arg)
+{
+  send_receive("SITE %s", arg);
+  return 0;
 }
 
 ull FTP::size(const char *path)
