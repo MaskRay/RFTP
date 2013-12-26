@@ -7,6 +7,7 @@ void help(FILE *fout, const char *argv0)
   fprintf(fout, "\n");
   fprintf(fout, "Usage: %s [options] root\n", argv0);
   fprintf(fout, "Options:\n");
+  fprintf(fout, "  -6, --ipv6      ipv6 (default is ipv4)\n");
   fprintf(fout, "  -d, --debug     \n");
   fprintf(fout, "  -n, --nodaemon  Do not background the process or disassociate it from the controlling terminal\n");
   fprintf(fout, "  -p, --port      listening port\n");
@@ -19,7 +20,9 @@ void help(FILE *fout, const char *argv0)
 int main(int argc, char *argv[])
 {
   struct option longopts[] = {
+    {"ipv6", no_argument, 0, '6'},
     {"debug", no_argument, 0, 'd'},
+    {"nodaemon", no_argument, 0, 'n'},
     {"help", no_argument, 0, 'h'},
     {"port", required_argument, 0, 'p'},
     {"quiet", no_argument, 0, 'q'},
@@ -27,10 +30,14 @@ int main(int argc, char *argv[])
   };
 
   bool daemon = true;
+  bool ipv6 = false;
   int port = 21;
   int c;
-  while ((c = getopt_long(argc, argv, "dhnp:q", longopts, NULL)) != -1) {
+  while ((c = getopt_long(argc, argv, "6dhnp:q", longopts, NULL)) != -1) {
     switch (c) {
+    case '6':
+      ipv6 = true;
+      break;
     case 'd':
       gv_log_level = DEBUG;
       break;
@@ -60,10 +67,16 @@ int main(int argc, char *argv[])
 
   struct sockaddr_storage sa;
   memset(&sa, 0, sizeof sa);
-  ((struct sockaddr_in *)&sa)->sin_family = AF_INET;
-  ((struct sockaddr_in *)&sa)->sin_addr.s_addr = htonl(INADDR_ANY);
-  ((struct sockaddr_in *)&sa)->sin_port = htons(port);
-  Sock sock(AF_INET);
+  Sock sock(ipv6 ? AF_INET6 : AF_INET);
+  if (ipv6) {
+    ((struct sockaddr_in6 *)&sa)->sin6_family = AF_INET6;
+    ((struct sockaddr_in6 *)&sa)->sin6_addr = in6addr_any;
+    ((struct sockaddr_in6 *)&sa)->sin6_port = htons(port);
+  } else {
+    ((struct sockaddr_in *)&sa)->sin_family = AF_INET;
+    ((struct sockaddr_in *)&sa)->sin_addr.s_addr = INADDR_ANY;
+    ((struct sockaddr_in *)&sa)->sin_port = htons(port);
+  }
   if (! sock.bind(&sa) || ! sock.listen())
     goto exit;
 
@@ -81,5 +94,6 @@ int main(int argc, char *argv[])
   return 0;
 
 exit:
+  perror("");
   return 2;
 }

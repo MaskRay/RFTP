@@ -78,7 +78,8 @@ int Connection::recv_binary(FILE *fout)
     ssize_t n = _data->read(buf, BUF_SIZE);
     if (n <= 0)
       break;
-    ::fwrite(buf, n, 1, fout);
+    if (::fwrite(buf, n, 1, fout) != n)
+      return -1;
   }
   return 0;
 }

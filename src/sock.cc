@@ -28,7 +28,7 @@ bool Sock::connect(const struct sockaddr_storage *sa)
     _handle = -1;
     return false;
   }
-  memcpy(&_remote_addr, sa, sizeof *sa);
+  _remote_addr = *sa;
 
   if (! create_streams("r", "w")) {
     close(_handle);
@@ -119,19 +119,16 @@ Sock *Sock::server_accept()
   }
 
   Sock *r = dup();
+  if (! r)
+    return NULL;
   r->_handle = clifd;
-  memcpy(&r->_local_addr, &sa, sizeof sa);
+  r->_remote_addr = sa;
 
   if (! r->create_streams("r", "w")) {
     delete r;
     return NULL;
   }
   return r;
-}
-
-bool Sock::bind()
-{
-  return bind(&_local_addr);
 }
 
 bool Sock::bind(const struct sockaddr_storage *sa)

@@ -6,13 +6,14 @@ class Sock
 public:
   Sock(int family);
   ~Sock();
+  bool connect() { return connect(&_remote_addr); }
   bool connect(const struct sockaddr_storage *sa);
   bool create_streams(const char *in_mode, const char *out_mode);
   void destroy_streams();
   Sock *dup();
   Sock *server_accept();
   bool accept(bool passive);
-  bool bind();
+  bool bind() { return bind(&_local_addr); }
   bool bind(const struct sockaddr_storage *sa);
   bool listen();
   ssize_t read(void *buf, size_t cnt);

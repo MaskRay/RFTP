@@ -1,3 +1,4 @@
+#include "../log.hh"
 #include "session.hh"
 
 Session::Session()
@@ -12,6 +13,13 @@ Session::~Session()
   _data = NULL;
 }
 
+void Session::close_data()
+{
+  delete _data;
+  _data = NULL;
+  _passive = false;
+}
+
 int Session::get_passive_port()
 {
   static pthread_mutex_t mut = PTHREAD_MUTEX_INITIALIZER;
@@ -21,23 +29,36 @@ int Session::get_passive_port()
   return port;
 }
 
+bool Session::set_epsv()
+{
+  close_data();
+  bool ipv6 = _ctrl->_local_addr.ss_family == AF_INET6;
+
+  _data = new Sock(AF_INET6);
+  auto sa6 = (struct sockaddr_in6 *)&_data->_local_addr;
+  sa6->sin6_addr = in6addr_any;
+  sa6->sin6_port = 0;
+  if (! _data->bind() || ! _data->listen()) {
+    send(500, "Failed to bind/listen: %d", errno);
+    close_data();
+    return false;
+  }
+
+  return _passive = true;
+}
+
 bool Session::set_pasv()
 {
   if (_data)
     return true;
-  bool ipv6 = _ctrl->_local_addr.ss_family == AF_INET6;
 
-  _data = _ctrl->dup();
+  _data = new Sock(AF_INET);
   auto sa = (struct sockaddr_in *)&_data->_local_addr;
-  auto sa6 = (struct sockaddr_in6 *)&_data->_local_addr;
-  if (ipv6)
-    sa6->sin6_port = 0;
-  else
-    sa->sin_port = 0;
+  sa->sin_addr.s_addr = INADDR_ANY;
+  sa->sin_port = 0;
   if (! _data->bind() || ! _data->listen()) {
     send(500, "Failed to bind/listen: %d", errno);
-    delete _data;
-    _data = NULL;
+    close_data();
     return false;
   }
 
@@ -53,6 +74,12 @@ void Session::send(int code, const char *fmt, ...)
   va_end(ap);
   _ctrl->printf("\r\n");
   _ctrl->flush();
+
+  debug("--> %d ", code);
+  va_start(ap, fmt);
+  debug(fmt, ap);
+  va_end(ap);
+  debug("\n");
 }
 
 void Session::send_500()
@@ -79,7 +106,7 @@ void Session::loop()
     int len = gets();
     if (_ctrl->eof())
       break;
-    puts(_reply);
+    debug("<-- %s\n", _reply);
     int argc = 0;
     char *q;
     if (*_reply) {
@@ -123,16 +150,50 @@ void Session::loop()
         }
         break;
       }
-      if (exe)
-        (this->*(cmd->fn))(argc, argv);
+      if (exe) {
+        if (! _logged_in && strcasecmp(argv[0], "USER") && strcasecmp(argv[0], "PASS"))
+          send(530, "Please login with USER and PASS");
+        else
+          (this->*(cmd->fn))(argc, argv);
+      }
     } else
       send_500();
   }
   delete[] argv;
 }
 
-void Session::parse()
+bool Session::init_data(TransferMode type)
 {
+  if (_passive) {
+    if (! _data->accept(! _passive)) {
+      send_500();
+      close_data();
+      return false;
+    }
+    if (type == IMAGE)
+      send(150, "Opening IMAGE mode data connection");
+    else
+      send(150, "Opening ASCII mode data connection for file list");
+  } else {
+    if (! _data) {
+      send(500, "PORT/EPSV");
+      return false;
+    }
+    auto sa = (struct sockaddr_in *)&_data->_local_addr;
+    auto sa6 = (struct sockaddr_in6 *)&_data->_local_addr;
+    sa->sin_port = htons(ntohs(sa->sin_port) - 1);
+    if (! _data->bind()) {
+      send(425, "Unable to bind ftp-data port");
+      close_data();
+      return false;
+    }
+    if (! _data->connect()) {
+      send(425, "Unable to build data connection");
+      close_data();
+      return false;
+    }
+  }
+  return true;
 }
 
 void Session::do_cdup(int argc, char *argv[])
@@ -158,22 +219,12 @@ void Session::do_cwd(int argc, char *argv[])
     send_ok(250);
 }
 
-bool Session::init_data(TransferMode type)
+void Session::do_epsv(int argc, char *argv[])
 {
-  if (_passive) {
-    if (! _data->accept(! _passive)) {
-      send_500();
-      return false;
-    }
-    if (type == IMAGE)
-      send(150, "Opening IMAGE mode data connection");
-    else
-      send(150, "Opening ASCII mode data connection for file list");
-  } else {
-    send(500, "");
-    return false;
+  if (set_epsv()) {
+    int p = ((struct sockaddr_in6 *)&_data->_local_addr)->sin6_port;
+    send(227, "Entering Extended Passive Mode (|||%d|)", p);
   }
-  return true;
 }
 
 void Session::do_list(int argc, char *argv[])
@@ -236,6 +287,7 @@ void Session::do_noop(int argc, char *argv[])
 
 void Session::do_pass(int argc, char *argv[])
 {
+  _logged_in = true;
   send(230, "Anonymous access granted");
 }
 
@@ -250,6 +302,36 @@ void Session::do_pasv(int argc, char *argv[])
 
 void Session::do_port(int argc, char *argv[])
 {
+  close_data();
+
+  unsigned char addr[4], port[2];
+  int i = 0;
+  for (char *p = argv[1]; ; p = NULL) {
+    char *q = strtok(p, ",");
+    if (! q) break;
+    for (char *r = q; *r; r++)
+      if (! isdigit(*r))
+        goto s501;
+    int d = atoi(q);
+    if (unsigned(d) >= 256)
+      goto s501;
+    if (i < 4)
+      addr[i++] = d;
+    else if (i < 6)
+      port[i++-4] = d;
+    else
+      goto s501;
+  }
+
+  _data = _ctrl->dup();
+  memcpy(&((struct sockaddr_in *)&_data->_remote_addr)->sin_addr, addr, 4);
+  memcpy(&((struct sockaddr_in *)&_data->_remote_addr)->sin_port, port, 2);
+  send_ok(200);
+  return;
+
+s501:
+  send_501();
+  return;
 }
 
 void Session::do_pwd(int argc, char *argv[])
@@ -303,6 +385,21 @@ void Session::do_size(int argc, char *argv[])
 
 void Session::do_stor(int argc, char *argv[])
 {
+  FILE *f = fopen(argv[1], "w");
+  if (! f) {
+    send(550, "\"%s\": Failed", argv[1]);
+    return;
+  }
+
+  if (! init_data(_type))
+    return;
+  if (_type == IMAGE)
+    recv_binary(f);
+  else
+    recv_ascii(f);
+  fclose(f);
+  close_data();
+  send(226, "Transfer complete");
 }
 
 void Session::do_type(int argc, char *argv[])

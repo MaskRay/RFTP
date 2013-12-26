@@ -14,7 +14,6 @@ public:
   ~Session();
   void loop();
   bool init_data(TransferMode);
-  bool set_pasv();
 
   struct Command {
     const char *name;
@@ -24,6 +23,7 @@ public:
 
   CC(cdup);
   CC(cwd);
+  CC(epsv);
   CC(list);
   CC(mdtm);
   CC(mkd);
@@ -40,9 +40,10 @@ public:
   CC(type);
   CC(user);
 
-  Command cmds[18] = {
+  Command cmds[19] = {
     CM("CDUP", cdup, ARG_NONE),
     CM("CWD",  cwd,  ARG_STRING),
+    CM("EPSV", epsv, ARG_NONE),
     CM("LIST", list, ARG_OPT_STRING),
     CM("MKD",  mkd,  ARG_STRING),
     CM("MDTM", mdtm, ARG_STRING),
@@ -66,12 +67,16 @@ public:
   TransferMode _type = ASCII;
 
 protected:
+  void close_data();
   int get_passive_port();
-  void parse();
   void send(int code, const char *msg, ...);
   void send_ok(int code);
   void send_500();
   void send_501();
+  bool set_epsv();
+  bool set_pasv();
+
+  bool _logged_in = false;
 };
 
 
