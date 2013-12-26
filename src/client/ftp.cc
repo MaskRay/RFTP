@@ -73,11 +73,6 @@ int FTP::send_receive(LogLevel level, const char *fmt, ...)
   return _code;
 }
 
-int FTP::fgetc(Sock *sock)
-{
-  return sock->fgetc();
-}
-
 int FTP::gets()
 {
   if (! connected()) {
@@ -85,47 +80,10 @@ int FTP::gets()
     return -1;
   }
 
-  bool brk = false;
-  int i = 0, saved = -2;
-  while (! brk) {
-    int c = saved == -2 ? fgetc() : saved;
-    saved = -2;
-    switch (c) {
-    case EOF:
-      err("Server has closed control connection\n");
-      brk = true;
-      break;
-    case 255:
-      switch (saved = fgetc()) {
-      case 251: // WILL
-          break;
-      case 252: // WONT
-          break;
-      case 253:
-      case 254:
-          break;
-      default:
-          break;
-      }
-      continue;
-    case '\r':
-      brk = true;
-      if (fgetc() != '\n')
-        err("Erroneous line break returned by server\n");
-      break;
-    case '\n':
-      brk = true;
-      break;
-    default:
-      if (i < MAX_REPLY-1)
-        _reply[i++] = c;
-      break;
-    }
-  }
+  int i = Connection::gets();
 
-  if (i >= MAX_REPLY-1)
+  if (i >= MAX_REPLY)
     err("Reply too long\n");
-  _reply[i] = '\0';
   _code = atoi(_reply);
   _code_family = _code / 100;
   return _code;

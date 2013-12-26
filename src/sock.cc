@@ -113,6 +113,27 @@ bool Sock::accept(bool passive)
   return true;
 }
 
+Sock *Sock::server_accept()
+{
+  struct sockaddr_storage sa;
+  socklen_t l = sizeof sa;
+  int clifd = ::accept(_handle, (struct sockaddr *)&sa, &l);
+  if (clifd == -1) {
+    perror(__func__);
+    return NULL;
+  }
+
+  Sock *r = dup();
+  r->_handle = clifd;
+  memcpy(&r->_local_addr, &sa, sizeof sa);
+
+  if (! r->create_streams("r", "w")) {
+    delete r;
+    return NULL;
+  }
+  return r;
+}
+
 bool Sock::listen(const struct sockaddr *sa, socklen_t len)
 {
   _handle = socket(sa->sa_family, SOCK_STREAM, IPPROTO_TCP);
@@ -163,7 +184,7 @@ int Sock::printf(const char *fmt, ...)
 {
   va_list va;
   va_start(va, fmt);
-  int r = ::fprintf(fout, fmt, va);
+  int r = ::vfprintf(fout, fmt, va);
   va_end(va);
   return r;
 }

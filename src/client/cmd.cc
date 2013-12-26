@@ -171,7 +171,7 @@ void CMD::get(vector<string> args)
 
   REP(i, argc)
     free(argv[i]);
-  delete argv;
+  delete[] argv;
 }
 
 void CMD::help(vector<string> args)
@@ -247,7 +247,7 @@ void CMD::put(vector<string> args)
 
   REP(i, argc)
     free(argv[i]);
-  delete argv;
+  delete[] argv;
 }
 
 void CMD::pwd(vector<string> args)

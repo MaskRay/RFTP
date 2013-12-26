@@ -1,5 +1,5 @@
 #pragma once
-#include "../common.hh"
+#include "common.hh"
 
 class Sock
 {
@@ -10,6 +10,7 @@ public:
   bool create_streams(const char *in_mode, const char *out_mode);
   void destroy_streams();
   Sock *dup();
+  Sock *server_accept();
   bool accept(bool passive);
   bool listen(const struct sockaddr *sa, socklen_t len);
   ssize_t read(void *buf, size_t cnt);
