@@ -2,13 +2,40 @@
 
 LogLevel gv_log_level = LOG;
 
-void print(LogLevel level, const char *fmt, va_list ap)
+const char *log_level_str()
 {
-  if (level <= gv_log_level)
-    vfprintf(stderr, fmt, ap);
+  switch (gv_log_level) {
+  case DEBUG: return "debug";
+  case INFO: return "info";
+  case LOG: return "log";
+  case WARNING: return "warning";
+  case ERR: return "err";
+  case CRIT: return "crit";
+  default: return "unknown";
+  }
 }
 
-void debug(const char *fmt, va_list ap)
-{
-  print(DEBUG, fmt, ap);
-}
+#define FF(name, level)                         \
+  bool name(const char *fmt, va_list ap)        \
+  {                                             \
+    if (level <= gv_log_level)                  \
+      return vfprintf(stderr, fmt, ap), true;   \
+    return false;                               \
+  }                                             \
+  bool name(const char *fmt, ...)               \
+  {                                             \
+    va_list ap;                                 \
+    va_start(ap, fmt);                          \
+    bool r = name(fmt, ap);                     \
+    va_end(ap);                                 \
+    return r;                                   \
+  }
+
+FF(crit, CRIT)
+FF(err, ERR)
+FF(warning, WARNING)
+FF(log, LOG)
+FF(info, INFO)
+FF(debug, DEBUG)
+
+#undef FF

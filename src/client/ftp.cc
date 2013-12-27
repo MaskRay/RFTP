@@ -54,6 +54,7 @@ static void help_get(FILE *fout)
   fprintf(fout, "Usage: get [options] <rfile>\n");
   fprintf(fout, "Options:\n");
   fprintf(fout, "  -a, --ascii     use ascii mode (default: binary)\n");
+  fprintf(fout, "  -c, --continue  continue, resume transfer\n");
   fprintf(fout, "  -o, --output    local file name (default: basename of rfile)\n");
   fprintf(fout, "  -h, --help      help\n");
 }
@@ -318,13 +319,7 @@ void FTP::loop()
   }
 }
 
-template <typename... Ts>
-int FTP::send_receive(const char *fmt, Ts... ts)
-{
-  return send_receive(DEBUG, fmt, ts...);
-}
-
-int FTP::send_receive(LogLevel level, const char *fmt, ...)
+int FTP::send_receive(const char *fmt, ...)
 {
   va_list ap;
   va_start(ap, fmt);
@@ -345,7 +340,7 @@ int FTP::send_receive(LogLevel level, const char *fmt, ...)
     return -1;
   }
 
-  read_reply(level);
+  read_reply();
   return _code;
 }
 
@@ -371,21 +366,25 @@ void reply_alrm_handler(int)
 
 void FTP::print_error()
 {
-  if (_code_family >= C_TRANSIENT && gv_log_level < DEBUG)
+  if (_code_family >= C_TRANSIENT)
     print_reply();
 }
 
 void FTP::print_reply(LogLevel level)
 {
-  print(level, "<-- %s\n", _reply);
+  if (level <= gv_log_level)
+    print_reply();
 }
 
 void FTP::print_reply()
 {
-  info("<-- %s\n", _reply);
+  if (_reply_is_new) {
+    printf("<-- %s\n", _reply);
+    _reply_is_new = false;
+  }
 }
 
-int FTP::read_reply(LogLevel level)
+int FTP::read_reply()
 {
   set_signal(SIGALRM, reply_alrm_handler);
   alarm(_reply_timeout);
@@ -399,11 +398,11 @@ int FTP::read_reply(LogLevel level)
     return -1;
   }
 
-  print_reply(level);
+  print_reply(DEBUG);
   if (_reply[3] == '-') {
     char tmp[3];
     strncpy(tmp, _reply, 3);
-    while (gets() != -1 && (print_reply(level), strncmp(tmp, _reply, 3)));
+    while (gets() != -1 && (print_reply(DEBUG), strncmp(tmp, _reply, 3)));
   }
   alarm(0);
   set_signal(SIGALRM, SIG_DFL);
@@ -482,8 +481,7 @@ int FTP::init_data()
       sa->sin_port = 0;
     if (! _data->bind() || ! _data->listen()) {
       err("bind/listen failed\n");
-      delete _data;
-      _data = NULL;
+      close_data();
       return -1;
     }
 
@@ -499,8 +497,7 @@ int FTP::init_data()
 
     if (_code_family != C_COMPLETION) {
       err("PORT/EPRT failed\n");
-      delete _data;
-      _data = NULL;
+      close_data();
       return -1;
     }
   }
@@ -510,75 +507,98 @@ int FTP::init_data()
 
 int FTP::cat(const char *path)
 {
-  if (init_receive(path, ASCII))
+  if (! init_receive(path, ASCII, 0))
     return -1;
   recv_ascii(stdout);
   close_data();
   read_reply();
-  return _code_family == C_COMPLETION ? 0 : -1;
+  if (_code_family != C_COMPLETION) {
+    print_error();
+    return -1;
+  }
+  return 0;
 }
 
-int FTP::get_file(const char *in_path, const char *out_path, TransferMode mode)
+int FTP::get_file(const char *in_path, const char *out_path, GetMode get_mode, DataType mode)
 {
   struct stat buf;
+  long size = 0;
   if (! stat(out_path, &buf)) {
     if (S_ISDIR(buf.st_mode)) {
       err("%s is a directory\n", out_path);
       return -1;
     }
+    if (get_mode == GET_RESUME)
+      size = buf.st_size;
   }
 
-  if (init_receive(in_path, mode)) {
+  if (! init_receive(in_path, mode, size)) {
     print_error();
     return -1;
   }
 
-  FILE *f = fopen(out_path, "w");
+  FILE *f = fopen(out_path, size ? "a" : "w");
   if (! f) {
     perror(out_path);
+    send_receive("ABRT");
     return -1;
   }
   if (mode == IMAGE)
     recv_binary(f);
   else
     recv_ascii(f);
-  fclose(f);
   close_data();
 
   read_reply();
-  return _code_family == C_COMPLETION ? 0 : -1;
+  if (_code_family == C_COMPLETION) {
+    info("Transfer complete, file size %ld\n", ftell(f));
+    fclose(f);
+    return 0;
+  }
+  fclose(f);
+  return -1;
 }
 
-int FTP::init_receive(const char *in_path, TransferMode mode)
+bool FTP::init_receive(const char *in_path, DataType mode, long offset)
 {
   if (init_data())
-    return -1;
+    return false;
   type(mode);
+  if (offset > 0) {
+    send_receive("REST %ld", offset);
+    if (_code_family != C_INTERMEDIATE)
+      return false;
+  }
   send_receive("RETR %s", in_path);
   if (_code_family != C_PRELIMINARY)
-    return -1;
+    return false;
 
   if (! _data->accept(passive())) {
     err("accept failed\n");
-    return -1;
+    return false;
   }
-  return 0;
+  return true;
 }
 
-int FTP::init_send(const char *out_path, TransferMode mode)
+bool FTP::init_send(const char *out_path, DataType mode, long offset)
 {
   if (init_data())
-    return -1;
+    return false;
   type(mode);
+  if (offset > 0) {
+    send_receive("REST %ld", offset);
+    if (_code_family != C_INTERMEDIATE)
+      return false;
+  }
   send_receive("STOR %s", out_path);
   if (_code_family != C_PRELIMINARY)
-    return -1;
+    return false;
 
   if (! _data->accept(passive())) {
     err("accept failed\n");
-    return -1;
+    return false;
   }
-  return 0;
+  return true;
 }
 
 int FTP::login()
@@ -589,13 +609,15 @@ int FTP::login()
     free(user);
     user = strdup("anonymous");
   }
-  send_receive(CRIT, "USER %s", user);
+  send_receive("USER %s", user);
+  print_reply();
 
   if (_code_family == C_INTERMEDIATE) {
     const char *pass = getpass("Password: ");
     if (! strcmp(pass, "") && ! strcmp(user, "anonymous"))
       pass = "anonymous@";
-    send_receive(CRIT, "PASS %s", pass);
+    send_receive("PASS %s", pass);
+    print_reply();
   }
 
   free(user);
@@ -634,7 +656,7 @@ int FTP::cdup()
 {
   send_receive("CDUP");
   print_error();
-  return _code_family == C_COMPLETION ? pwd(false) : -1;
+  return _code_family == C_COMPLETION ? pwd() : -1;
 }
 
 int FTP::chmod(const char *mode, const char *path)
@@ -762,9 +784,10 @@ bool FTP::pasv(bool ipv6, unsigned char *res, unsigned short *ipv6_port)
   return true;
 }
 
-int FTP::put_file(const char *in_path, const char *out_path, TransferMode mode)
+int FTP::put_file(const char *in_path, const char *out_path, PutMode put_mode, DataType mode)
 {
   struct stat buf;
+  long rsize = 0;
   if (stat(in_path, &buf)) {
     perror("");
     return -1;
@@ -773,37 +796,48 @@ int FTP::put_file(const char *in_path, const char *out_path, TransferMode mode)
     err("%s is a directory\n", in_path);
     return -1;
   }
-  if (access(in_path, R_OK)) {
-    err("%s is not readable\n", in_path);
-    return -1;
-  }
+  if (put_mode == PUT_RESUME && _has_put_resume)
+    rsize = size(out_path);
 
-  if (init_send(out_path, mode)) {
-    print_error();
-    return -1;
+  if (! init_send(out_path, mode, rsize)) {
+    if (put_mode != PUT_RESUME) {
+      print_error();
+      return -1;
+    }
+    _has_put_resume = false;
+    rsize = 0;
+    if (! init_send(out_path, mode, 0)) {
+      print_error();
+      return -1;
+    }
   }
 
   FILE *f = fopen(in_path, "r");
-  if (! f) {
+  if (! f || fseek(f, rsize, SEEK_SET) < 0) {
     perror(in_path);
+    send_receive("ABRT");
     return -1;
   }
   if (mode == IMAGE)
     send_binary(f);
   else
     send_ascii(f);
-  fclose(f);
   close_data();
 
   read_reply();
-  return _code_family == C_COMPLETION ? 0 : -1;
+  if (_code_family == C_COMPLETION) {
+    info("Transfer complete, file size %ld\n", ftell(f));
+    fclose(f);
+    return 0;
+  }
+  fclose(f);
+  return -1;
 }
 
-int FTP::pwd(bool log)
+int FTP::pwd()
 {
   send_receive("PWD");
-  if (log)
-    print_reply();
+  return _code_family == C_COMPLETION ? 0 : -1;
 }
 
 int FTP::rmdir(const char *path)
@@ -812,30 +846,23 @@ int FTP::rmdir(const char *path)
   return _code_family == C_COMPLETION ? 0 : -1;
 }
 
-int FTP::site(const char *arg)
-{
-  send_receive("SITE %s", arg);
-  return 0;
-}
-
-ull FTP::size(const char *path)
+long FTP::size(const char *path)
 {
   type(IMAGE);
   send_receive("SIZE %s", path);
-  if (_code == C_NOT_IMPLEMENTED) {
-    _has_size_cmd = false;
-    return -1;
+  if (_code_family == C_COMPLETION) {
+    long res;
+    if (sscanf(_reply, "%*d %lu", &res) == 1)
+      printf("%s: %lu\n", path, res);
+    return res;
   }
-  if (_code_family != C_COMPLETION)
-    return -1;
-
-  ull res;
-  sscanf(_reply, "%*s %llu", &res);
-  printf("%s: %llu\n", path, res);
-  return res;
+  if (_code == C_NOT_IMPLEMENTED)
+    _has_size_cmd = false;
+  print_error();
+  return 0;
 }
 
-int FTP::type(TransferMode mode)
+int FTP::type(DataType mode)
 {
   if (_data_type != mode) {
     send_receive("TYPE %c", mode == IMAGE ? 'I' : 'A');
@@ -878,14 +905,19 @@ void FTP::do_close(int argc, char *argv[])
 
 void FTP::do_debug(int argc, char *argv[])
 {
-  const char *lvl = argc == 1 ? "debug" : argv[1];
-  switch (lvl[0]) {
-  case 'd': gv_log_level = DEBUG; break;
-  case 'i': gv_log_level = INFO; break;
-  case 'l': gv_log_level = LOG; break;
-  case 'w': gv_log_level = WARNING; break;
-  case 'e': gv_log_level = ERR; break;
-  case 'c': gv_log_level = CRIT; break;
+  if (argc == 1)
+    printf("Current debug level: %s\n", log_level_str());
+  else {
+    switch (argv[1][0]) {
+    case 'd': gv_log_level = DEBUG; break;
+    case 'i': gv_log_level = INFO; break;
+    case 'l': gv_log_level = LOG; break;
+    case 'w': gv_log_level = WARNING; break;
+    case 'e': gv_log_level = ERR; break;
+    case 'c': gv_log_level = CRIT; break;
+    default: err("Unknown debug level: %s\n", argv[1]); return;
+    }
+    info("Current debug level: %s\n", log_level_str());
   }
 }
 
@@ -925,18 +957,23 @@ void FTP::do_get(int argc, char *argv[])
 {
   struct option longopts[] = {
     {"ascii", no_argument, 0, 'a'},
+    {"continue", no_argument, 0, 'c'},
     {"output", required_argument, 0, 'o'},
     {0, 0, 0, 0},
   };
 
   char *out_path = NULL;
-  TransferMode mode = IMAGE;
+  DataType mode = IMAGE;
+  GetMode get_mode = GET_NONE;
   int c;
   optind = 0;
-  while ((c = getopt_long(argc, argv, "ao:h", longopts, NULL)) != -1) {
+  while ((c = getopt_long(argc, argv, "aco:h", longopts, NULL)) != -1) {
     switch (c) {
     case 'a':
       mode = ASCII;
+      break;
+    case 'c':
+      get_mode = GET_RESUME;
       break;
     case 'o':
       out_path = strdup(optarg);
@@ -958,7 +995,7 @@ void FTP::do_get(int argc, char *argv[])
   char *in_path = argv[optind];
   if (! out_path)
     out_path = strdup(in_path);
-  get_file(in_path, out_path, mode);
+  get_file(in_path, out_path, get_mode, mode);
   free(out_path);
   print_error();
 }
@@ -1009,13 +1046,17 @@ void FTP::do_put(int argc, char *argv[])
   };
 
   char *out_path = NULL;
-  TransferMode mode = IMAGE;
+  DataType mode = IMAGE;
+  PutMode put_mode = PUT_NONE;
   int c;
   optind = 0;
-  while ((c = getopt_long(argc, argv, "ao:", longopts, NULL)) != -1) {
+  while ((c = getopt_long(argc, argv, "aco:", longopts, NULL)) != -1) {
     switch (c) {
     case 'a':
       mode = ASCII;
+      break;
+    case 'c':
+      put_mode = PUT_RESUME;
       break;
     case 'o':
       out_path = strdup(optarg);
@@ -1032,13 +1073,14 @@ void FTP::do_put(int argc, char *argv[])
   char *in_path = argv[optind];
   if (! out_path)
     out_path = strdup(in_path);
-  put_file(in_path, out_path, mode);
+  put_file(in_path, out_path, put_mode, mode);
   free(out_path);
 }
 
 void FTP::do_pwd(int argc, char *argv[])
 {
-  pwd(true);
+  pwd();
+  print_reply();
 }
 
 void FTP::do_quit(int argc, char *argv[])
@@ -1059,7 +1101,7 @@ void FTP::do_quote(int argc, char *argv[])
     strcat(buf, argv[i]);
   }
   send_receive(buf);
-  print_reply(CRIT);
+  print_reply();
   delete[] buf;
 }
 
@@ -1076,7 +1118,18 @@ void FTP::do_rmdir(int argc, char *argv[])
 
 void FTP::do_site(int argc, char *argv[])
 {
-  site(argv[1]);
+  size_t l = sizeof("SITE") + argc;
+  FOR(i, 1, argc)
+    l += strlen(argv[i]);
+  char *buf = new char[l];
+  strcpy(buf, "SITE");
+  FOR(i, 1, argc) {
+    strcat(buf, " ");
+    strcat(buf, argv[i]);
+  }
+  send_receive(buf);
+  print_reply();
+  delete[] buf;
 }
 
 void FTP::do_size(int argc, char *argv[])

@@ -139,7 +139,7 @@ void Session::loop()
   }
 }
 
-bool Session::init_data(TransferMode type)
+bool Session::init_data(DataType type)
 {
   if (_passive) {
     if (! _data->accept(! _passive)) {

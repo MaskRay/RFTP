@@ -47,6 +47,7 @@ int Connection::gets()
   }
 
   _reply[i] = '\0';
+  _reply_is_new = true;
   return i+1;
 }
 

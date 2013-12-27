@@ -1,9 +1,9 @@
 #include "gv.hh"
 
 bool gv_interrupted, gv_sighup_received, gv_in_transfer;
-char *gv_PS1 = strdup("%Mftp%0 >>= ");
-char *gv_PS2 = strdup("%Mftp%0@%h >>= ");
-char *gv_PS3 = strdup("%Mftp%0@%h %B%p%0 <> %G%l%0 >>= ");
+char *gv_PS1 = strdup("%Mrftp%0 >>= ");
+char *gv_PS2 = strdup("%Mrftp%0@%h >>= ");
+char *gv_PS3 = strdup("%Mrftp%0@%h %B%p%0 <> %G%l%0 >>= ");
 sigjmp_buf gv_jmpbuf;
 bool gv_jmpbuf_set;
 

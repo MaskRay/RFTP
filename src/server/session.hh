@@ -6,14 +6,12 @@
 #define CC(name) void do_##name(int argc, char *argv[]);
 #define CM(name, fn, arg) {name, &Session::do_##fn, arg}
 
-enum Arg { ARG_NONE, ARG_STRING, ARG_OPT_STRING, ARG_TYPE };
-
 class Session : public Connection {
 public:
   Session();
   ~Session();
   void loop();
-  bool init_data(TransferMode);
+  bool init_data(DataType);
 
   struct Command {
     const char *name;
@@ -76,7 +74,6 @@ protected:
 
   bool _logged_in = false;
 };
-
 
 #undef CC
 #undef CM

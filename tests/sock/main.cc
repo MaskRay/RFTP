@@ -3,16 +3,14 @@
 
 int server()
 {
-  struct sockaddr_in sa;
-  memset(&sa, 0, sizeof sa);
-  sa.sin_family = AF_INET;
-  sa.sin_port = htons(9998);
-  inet_aton("127.0.0.1", &sa.sin_addr);
-
-  Sock sock;
-  if (! sock.listen((struct sockaddr *)&sa, sizeof sa))
+  struct sockaddr_storage ss;
+  Sock sock(AF_INET);
+  auto sa = (struct sockaddr_in *)&sock._local_addr;
+  sa->sin_port = htons(9998);
+  inet_aton("127.0.0.1", &sa->sin_addr);
+  if (! sock.listen())
     return 1;
-  sock.accept();
+  sock.accept(&ss);
   printf("%d\n", sock.fgetc());
   printf("%d\n", sock.fgetc());
   return 0;
@@ -20,14 +18,13 @@ int server()
 
 int main()
 {
-  struct sockaddr_in sa;
-  memset(&sa, 0, sizeof sa);
-  sa.sin_family = AF_INET;
-  sa.sin_port = htons(9999);
-  inet_aton("127.0.0.1", &sa.sin_addr);
+  struct sockaddr_in ss;
 
-  Sock sock;
-  if (! sock.connect((struct sockaddr *)&sa, sizeof sa))
+  Sock sock(AF_INET);
+  auto sa = (struct sockaddr_in *)&sock._remote_addr;
+  sa->sin_port = htons(9999);
+  inet_aton("127.0.0.1", &sa->sin_addr);
+  if (! sock.connect())
     return 1;
   if (sock.fputc('h') == EOF)
     return 2;

@@ -4,49 +4,17 @@
 enum LogLevel {CRIT, ERR, WARNING, LOG, INFO, DEBUG};
 
 extern LogLevel gv_log_level;
+const char *log_level_str();
 
-template <typename... Ts>
-static void print(LogLevel level, const char *fmt, Ts... ts)
-{
-  if (level <= gv_log_level)
-    fprintf(stderr, fmt, ts...);
-}
-
-template <typename... Ts>
-void crit(const char *fmt, Ts... ts)
-{
-  print(CRIT, fmt, ts...);
-}
-
-template <typename... Ts>
-void err(const char *fmt, Ts... ts)
-{
-  print(ERR, fmt, ts...);
-}
-
-template <typename... Ts>
-void warning(const char *fmt, Ts... ts)
-{
-  print(WARNING, fmt, ts...);
-}
-
-template <typename... Ts>
-void log(const char *fmt, Ts... ts)
-{
-  print(LOG, fmt, ts...);
-}
-
-template <typename... Ts>
-void info(const char *fmt, Ts... ts)
-{
-  print(INFO, fmt, ts...);
-}
-
-template <typename... Ts>
-void debug(const char *fmt, Ts... ts)
-{
-  print(DEBUG, fmt, ts...);
-}
-
-void print(LogLevel level, const char *fmt, va_list ap);
-void debug(const char *fmt, va_list ap);
+bool crit(const char *, ...);
+bool err(const char *, ...);
+bool warning(const char *, ...);
+bool log(const char *, ...);
+bool info(const char *, ...);
+bool debug(const char *, ...);
+bool crit(const char *, va_list);
+bool err(const char *, va_list);
+bool warning(const char *, va_list);
+bool log(const char *, va_list);
+bool info(const char *, va_list);
+bool debug(const char *, va_list);

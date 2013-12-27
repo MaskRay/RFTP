@@ -9,11 +9,6 @@
 #define CC(name) void do_##name(int argc, char *argv[])
 #define CM(name, fn, arg) {name, &FTP::do_##fn, arg}
 
-enum CodeFamily {C_NONE, C_PRELIMINARY, C_COMPLETION, C_INTERMEDIATE, C_TRANSIENT, C_PERMANENT};
-enum Arg { ARG_NONE, ARG_STRING, ARG_OPT_STRING, ARG_TYPE, ARG_MV };
-
-enum Code {C_NOT_IMPLEMENTED = 502};
-
 class FTP : public Connection {
 public:
   FTP();
@@ -97,20 +92,19 @@ public:
   int chdir(const char *path);
   int chmod(const char *mode, const char *path);
   int cdup();
-  int get_file(const char *in_path, const char *out_path, TransferMode mode);
+  int get_file(const char *in_path, const char *out_path, GetMode get_mode, DataType mode);
   int help(const char *cmd);
   int lsdir(const char *cmd, const char *path, FILE *fout);
   int mkdir(const char *path);
   int mv(const char *from, const char *to);
   int open(const char *host);
   bool pasv(bool ipv6, unsigned char *res, unsigned short *ipv6_port);
-  int put_file(const char *in_path, const char *out_path, TransferMode mode);
-  int pwd(bool log);
+  int put_file(const char *in_path, const char *out_path, PutMode put_mode, DataType mode);
+  int pwd();
   int close();
   int rmdir(const char *path);
-  ull size(const char *path);
-  int site(const char *arg);
-  int type(TransferMode mode);
+  long size(const char *path);
+  int type(DataType mode);
 
   int login();
 
@@ -125,17 +119,14 @@ protected:
   const Command *find_cmd(const char *cmd);
   int gets();
   int init_data();
-  int init_receive(const char *in_path, TransferMode mode);
-  int init_send(const char *out_path, TransferMode mode);
+  bool init_receive(const char *in_path, DataType mode, long offset);
+  bool init_send(const char *out_path, DataType mode, long offset);
   bool passive() { return _passive; }
   const char *get_reply_text();
-  template <typename... Ts>
-    int send_receive(const char *fmt, Ts... ts);
-  int send_receive(LogLevel level, const char *fmt, ...);
+  int send_receive(const char *fmt, ...);
   char *get_cwd();
   void set_cur_dir(const char *path);
-  int read_reply() { return read_reply(DEBUG); }
-  int read_reply(LogLevel level);
+  int read_reply();
   void print_error();
   void print_reply();
   void print_reply(LogLevel level);
@@ -151,6 +142,7 @@ protected:
   bool _has_size_cmd = true;
   bool _has_pasv_cmd = true;
   bool _has_chmod_cmd = true;
+  bool _has_put_resume = true;
 };
 
 #undef CC
