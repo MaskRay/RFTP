@@ -258,7 +258,7 @@ not_connected:
     else if (! connected())
       err("Not connected\n");
     else
-    err("Not logged in\n");
+      err("Not logged in\n");
   }
 
   gv_interrupted = false;
@@ -499,8 +499,10 @@ int FTP::get_file(const char *in_path, const char *out_path, TransferMode mode)
     return -1;
   }
 
-  if (init_receive(in_path, mode))
+  if (init_receive(in_path, mode)) {
+    print_error();
     return -1;
+  }
   if (mode == IMAGE)
     recv_binary(f);
   else
@@ -720,8 +722,10 @@ int FTP::put_file(const char *in_path, const char *out_path, TransferMode mode)
     return -1;
   }
 
-  if (init_send(out_path, mode))
+  if (init_send(out_path, mode)) {
+    print_error();
     return -1;
+  }
 
   FILE *f = fopen(in_path, "r");
   if (! f) {
@@ -892,6 +896,7 @@ void FTP::do_get(int argc, char *argv[])
     out_path = strdup(in_path);
   get_file(in_path, out_path, mode);
   free(out_path);
+  print_error();
 }
 
 void FTP::do_help(int argc, char *argv[])

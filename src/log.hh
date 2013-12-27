@@ -1,14 +1,14 @@
 #pragma once
 #include "common.hh"
 
-enum LogLevel {DEBUG, INFO, LOG, WARNING, ERR, CRIT};
+enum LogLevel {CRIT, ERR, WARNING, LOG, INFO, DEBUG};
 
 extern LogLevel gv_log_level;
 
 template <typename... Ts>
 static void print(LogLevel level, const char *fmt, Ts... ts)
 {
-  if (level >= gv_log_level)
+  if (level <= gv_log_level)
     fprintf(stderr, fmt, ts...);
 }
 
