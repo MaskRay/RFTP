@@ -4,6 +4,53 @@
 
 const FTP::Command *CMD_AMBIGUOUS = (FTP::Command *)-1;
 
+static void help_open(FILE *fout)
+{
+  fprintf(fout, "Usage: open host[:port]\n");
+  fprintf(fout, "Example:\n");
+  fprintf(fout, "  open 127.1:2121\n");
+  fprintf(fout, "  open [::1]:21\n");
+  fprintf(fout, "  open 0\n");
+}
+
+static void help_connect(FILE *fout)
+{
+  help_open(fout);
+}
+
+static void help_chdir(FILE *fout)
+{
+  fprintf(fout, "Usage: cd rdir\n");
+  fprintf(fout, "Change current remote directory to <rdir>\n");
+}
+
+static void help_cd(FILE *fout)
+{
+  help_chdir(fout);
+}
+
+static void help_mkdir(FILE *fout)
+{
+  fprintf(fout, "Usage: md rdir\n");
+  fprintf(fout, "Make remote directories\n");
+}
+
+static void help_md(FILE *fout)
+{
+  help_mkdir(fout);
+}
+
+static void help_rmdir(FILE *fout)
+{
+  fprintf(fout, "Usage: rd rdir\n");
+  fprintf(fout, "Remote remote directories\n");
+}
+
+static void help_rd(FILE *fout)
+{
+  help_rmdir(fout);
+}
+
 static void help_get(FILE *fout)
 {
   fprintf(fout, "Usage: get [options] rfile\n");
@@ -50,11 +97,17 @@ static void show_help(char *cmd, FILE *f)
     void (*fn)(FILE *);
   } helps[] = {
     HH(cat),
+    HH(cd),
+    HH(chdir),
     HH(get),
     HH(help),
     HH(lcd),
     HH(lpwd),
+    HH(md),
+    HH(mkdir),
     HH(put),
+    HH(rd),
+    HH(rmdir),
     {NULL,  NULL},
   };
 #undef HH
@@ -497,7 +550,15 @@ int FTP::login()
 
 int FTP::chdir(const char *path)
 {
-  send_receive("CWD %s", path);
+  if (! strcmp(path, "-")) {
+    if (prev_dir)
+      send_receive("CWD %s", prev_dir);
+    else {
+      err("No previous directory\n");
+      return -1;
+    }
+  } else
+    send_receive("CWD %s", path);
   if (_code_family == C_COMPLETION) {
     set_cur_dir(get_cwd());
     return 0;
@@ -796,9 +857,10 @@ void FTP::do_help(int argc, char *argv[])
   if (argc > 1)
     show_help(argv[1], stdout);
  else {
-    puts("All commands:");
+    printf("All commands: ");
     for (int i = 0; cmds[i].name; i++)
-      printf("  %s\n", cmds[i].name);
+      printf("%s%s", i ? ", " : "", cmds[i].name);
+    puts("");
   }
 }
 
@@ -847,6 +909,7 @@ void FTP::do_put(int argc, char *argv[])
 
   if (optind >= argc) {
     err("Invalid number of arguments\n");
+    help_put(stderr);
     return;
   }
 
