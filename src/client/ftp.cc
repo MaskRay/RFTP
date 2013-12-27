@@ -7,6 +7,11 @@ const FTP::Command *CMD_AMBIGUOUS = (FTP::Command *)-1;
 constexpr char *FTP::before_connected[];
 constexpr char *FTP::before_logged_in[];
 
+static void help_cat(FILE *fout)
+{
+  fprintf(fout, "Usage: cat <rfile>\n");
+}
+
 static void help_open(FILE *fout)
 {
   fprintf(fout, "Usage: open host[:port]\n");
@@ -44,6 +49,30 @@ static void help_debug(FILE *fout)
   fprintf(fout, "<level>: [d]ebug, [i]nfo, [w]arning, [e]rr, [c]rit\n");
 }
 
+static void help_get(FILE *fout)
+{
+  fprintf(fout, "Usage: get [options] <rfile>\n");
+  fprintf(fout, "Options:\n");
+  fprintf(fout, "  -a, --ascii     use ascii mode (default: binary)\n");
+  fprintf(fout, "  -o, --output    local file name (default: basename of rfile)\n");
+  fprintf(fout, "  -h, --help      help\n");
+}
+
+static void help_help(FILE *fout)
+{
+  fprintf(fout, "Usage: help [command]\n");
+}
+
+static void help_lcd(FILE *fout)
+{
+  fprintf(fout, "Usage: cat rfile\n");
+}
+
+static void help_lpwd(FILE *fout)
+{
+  fprintf(fout, "Usage: lpwd\n");
+}
+
 static void help_ls(FILE *fout)
 {
   fprintf(fout, "Usage: ls [rdir]\n");
@@ -67,26 +96,6 @@ static void help_mv(FILE *fout)
   fprintf(fout, "Rename <from> to <to>\n");
 }
 
-static void help_rmdir(FILE *fout)
-{
-  fprintf(fout, "Usage: rd rdir\n");
-  fprintf(fout, "Remote remote directories\n");
-}
-
-static void help_rd(FILE *fout)
-{
-  help_rmdir(fout);
-}
-
-static void help_get(FILE *fout)
-{
-  fprintf(fout, "Usage: get [options] rfile\n");
-  fprintf(fout, "Options:\n");
-  fprintf(fout, "  -a, --ascii     use ascii mode (default: binary)\n");
-  fprintf(fout, "  -o, --output    local file name (default: basename of rfile)\n");
-  fprintf(fout, "  -h, --help      help\n");
-}
-
 static void help_put(FILE *fout)
 {
   fprintf(fout, "Usage: put [options] lfile\n");
@@ -96,24 +105,33 @@ static void help_put(FILE *fout)
   fprintf(fout, "  -h, --help      help\n");
 }
 
-static void help_help(FILE *fout)
+static void help_quote(FILE *fout)
 {
-  fprintf(fout, "Usage: help [command]\n");
+  fprintf(fout, "Usage: quote <raw>\n");
+  fprintf(fout, "Send the command uninterpreted\n");
 }
 
-static void help_cat(FILE *fout)
+static void help_rmdir(FILE *fout)
 {
-  fprintf(fout, "Usage: cat rfile\n");
+  fprintf(fout, "Usage: rd rdir\n");
+  fprintf(fout, "Remote remote directories\n");
 }
 
-static void help_lcd(FILE *fout)
+static void help_site(FILE *fout)
 {
-  fprintf(fout, "Usage: cat rfile\n");
+  fprintf(fout, "Usage: site <cmd>\n");
+  fprintf(fout, "Execute site command <cmd>\n");
 }
 
-static void help_lpwd(FILE *fout)
+static void help_size(FILE *fout)
 {
-  fprintf(fout, "Usage: lpwd\n");
+  fprintf(fout, "Usage: size <rfile>\n");
+  fprintf(fout, "Get file size\n");
+}
+
+static void help_rd(FILE *fout)
+{
+  help_rmdir(fout);
 }
 
 static void show_help(const char *cmd, FILE *f)
@@ -139,8 +157,11 @@ static void show_help(const char *cmd, FILE *f)
     HH(mv),
     HH(open),
     HH(put),
+    HH(quote),
     HH(rd),
     HH(rmdir),
+    HH(site),
+    HH(size),
     {NULL,  NULL},
   };
 #undef HH
@@ -805,11 +826,12 @@ ull FTP::size(const char *path)
     _has_size_cmd = false;
     return -1;
   }
-  if (_code != C_COMPLETION)
+  if (_code_family != C_COMPLETION)
     return -1;
 
   ull res;
   sscanf(_reply, "%*s %llu", &res);
+  printf("%s: %llu\n", path, res);
   return res;
 }
 
@@ -860,6 +882,7 @@ void FTP::do_debug(int argc, char *argv[])
   switch (lvl[0]) {
   case 'd': gv_log_level = DEBUG; break;
   case 'i': gv_log_level = INFO; break;
+  case 'l': gv_log_level = LOG; break;
   case 'w': gv_log_level = WARNING; break;
   case 'e': gv_log_level = ERR; break;
   case 'c': gv_log_level = CRIT; break;
@@ -894,7 +917,8 @@ void FTP::do_lpwd(int argc, char *argv[])
 
 void FTP::do_mkdir(int argc, char *argv[])
 {
-  mkdir(argv[1]);
+  FOR(i, 1, argc)
+    mkdir(argv[i]);
 }
 
 void FTP::do_get(int argc, char *argv[])
@@ -1046,7 +1070,8 @@ void FTP::do_rhelp(int argc, char *argv[])
 
 void FTP::do_rmdir(int argc, char *argv[])
 {
-  rmdir(argv[1]);
+  FOR(i, 1, argc)
+    rmdir(argv[i]);
 }
 
 void FTP::do_site(int argc, char *argv[])
@@ -1056,5 +1081,6 @@ void FTP::do_site(int argc, char *argv[])
 
 void FTP::do_size(int argc, char *argv[])
 {
-  size(argv[1]);
+  FOR(i, 1, argc)
+    size(argv[i]);
 }
