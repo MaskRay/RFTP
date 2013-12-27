@@ -1,10 +1,10 @@
 #include "log.hh"
 
-LogLevel gv_log_level;
+LogLevel gv_log_level = LOG;
 
 void print(LogLevel level, const char *fmt, va_list ap)
 {
-  if (level >= gv_log_level)
+  if (level <= gv_log_level)
     vfprintf(stderr, fmt, ap);
 }
 

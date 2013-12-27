@@ -129,7 +129,7 @@ void Session::loop()
         break;
       }
       if (exe) {
-        if (! _logged_in && strcasecmp(argv[0], "USER") && strcasecmp(argv[0], "PASS"))
+        if (! _logged_in && strcasecmp(argv[0], "USER") && strcasecmp(argv[0], "PASS") && strcasecmp(argv[0], "QUIT"))
           send(530, "Please login with USER and PASS");
         else
           (this->*(cmd->fn))(argc, argv);
@@ -193,11 +193,7 @@ void Session::do_cwd(int argc, char *argv[])
   char buf[BUF_SIZE];
   struct stat statbuf;
   getcwd(buf, BUF_SIZE);
-  if (stat(argv[1], &statbuf) == -1)
-    send(550, "\"%s\": No such file or directory", argv[1]);
-  else if (! S_ISDIR(statbuf.st_mode))
-    send(550, "\"%s\": Target is not a directory", argv[1]);
-  else if (chdir(argv[1]) == -1)
+  if (chdir(argv[1]) == -1)
     send(550, "\"%s\": %s", strerror(errno));
   else
     send_ok(250);
@@ -374,15 +370,14 @@ void Session::do_pwd(int argc, char *argv[])
 void Session::do_quit(int argc, char *argv[])
 {
   send(221, "Goodbye");
-  this->~Session();
 }
 
 void Session::do_retr(int argc, char *argv[])
 {
   char buf[BUF_SIZE];
   FILE *f = fopen(argv[1], "r");
-  if (! f) {
-    send(550, "\"%s\": No such file or directory", argv[1]);
+  if (! f || fseek(f, 0, SEEK_END) < 0 || fseek(f, 0, SEEK_SET) < 0) {
+    send(550, "\"%s\": %s", argv[1], strerror(errno));
     return;
   }
 
@@ -411,7 +406,7 @@ void Session::do_size(int argc, char *argv[])
   if (_data_type != IMAGE)
     send(550, "SIZE not allowed in ASCII mode");
   else if (stat(argv[1], &statbuf) == -1)
-    send(550, "\"%s\": No such file or directory", argv[1]);
+    send(550, "\"%s\": %s", argv[1], strerror(errno));
   else
     send(213, "%jd", (intmax_t)statbuf.st_size);
 }

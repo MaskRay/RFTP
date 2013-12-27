@@ -54,7 +54,7 @@ public:
     CM("PASV", pasv, ARG_NONE),
     CM("PORT", port, ARG_STRING),
     CM("PWD",  pwd,  ARG_NONE),
-    CM("QUIT", quit, ARG_STRING),
+    CM("QUIT", quit, ARG_NONE),
     CM("RETR", retr, ARG_STRING),
     CM("RMD",  rmd,  ARG_STRING),
     CM("SIZE", size, ARG_STRING),

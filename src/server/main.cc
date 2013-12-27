@@ -1,4 +1,5 @@
 #include "../log.hh"
+#include "../util.hh"
 #include "session.hh"
 
 void help(FILE *fout, const char *argv0)
@@ -12,6 +13,7 @@ void help(FILE *fout, const char *argv0)
   fprintf(fout, "  -n, --nodaemon  Do not background the process or disassociate it from the controlling terminal\n");
   fprintf(fout, "  -p, --port      listening port\n");
   fprintf(fout, "  -q, --quiet     \n");
+  fprintf(fout, "  -u, --user      Change user identity\n");
   fprintf(fout, "  -h, --help      display this help and exit\n");
   fprintf(fout, "\n");
   fprintf(fout, "Report bugs to i@maskray.me\n");
@@ -25,6 +27,7 @@ int main(int argc, char *argv[])
     {"nodaemon", no_argument, 0, 'n'},
     {"port", required_argument, 0, 'p'},
     {"quiet", no_argument, 0, 'q'},
+    {"user", required_argument, 0, 'u'},
     {"help", no_argument, 0, 'h'},
     {NULL, 0, 0, 0},
   };
@@ -32,8 +35,9 @@ int main(int argc, char *argv[])
   bool nodaemon = false;
   bool ipv6 = false;
   int port = 21;
+  struct passwd *pw = NULL;
   int c;
-  while ((c = getopt_long(argc, argv, "6dnp:qh", longopts, NULL)) != -1) {
+  while ((c = getopt_long(argc, argv, "6dnp:qu:h", longopts, NULL)) != -1) {
     switch (c) {
     case '6':
       ipv6 = true;
@@ -53,6 +57,16 @@ int main(int argc, char *argv[])
     case 'h':
       help(stdout, argv[0]);
       return 0;
+    case 'u':
+      if (Util::is_non_negative(optarg))
+        pw = getpwuid(atoi(optarg));
+      else
+        pw = getpwnam(optarg);
+      if (! pw) {
+        err("Unknown user: %s\n", optarg);
+        return 1;
+      }
+      break;
     case '?':
       help(stderr, argv[0]);
       return 1;
@@ -84,6 +98,9 @@ int main(int argc, char *argv[])
   }
   if (! sock.bind(&sa) || ! sock.listen())
     goto exit;
+
+  if (pw && setuid(pw->pw_uid) == -1)
+    return perror("setuid"), 2;
 
   for(;;) {
     pthread_t tid;

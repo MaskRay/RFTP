@@ -8,6 +8,7 @@
 
 #include <fnmatch.h>
 #include <getopt.h>
+#include <pwd.h>
 #include <signal.h>
 #include <sys/stat.h>
 #include <sys/types.h>

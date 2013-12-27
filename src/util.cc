@@ -44,4 +44,14 @@ bool parse_cmd(char *line, int &argc, char *argv[])
   }
   return argc > 0;
 }
+
+bool is_non_negative(const char *s)
+{
+  if (! *s)
+    return false;
+  for (; *s; s++)
+    if (! isdigit(*s))
+      return false;
+  return true;
+}
 };

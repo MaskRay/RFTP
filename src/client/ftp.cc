@@ -61,6 +61,12 @@ static void help_md(FILE *fout)
   help_mkdir(fout);
 }
 
+static void help_mv(FILE *fout)
+{
+  fprintf(fout, "Usage: mv from to\n");
+  fprintf(fout, "Rename <from> to <to>\n");
+}
+
 static void help_rmdir(FILE *fout)
 {
   fprintf(fout, "Usage: rd rdir\n");
@@ -130,6 +136,7 @@ static void show_help(const char *cmd, FILE *f)
     HH(ls),
     HH(md),
     HH(mkdir),
+    HH(mv),
     HH(open),
     HH(put),
     HH(rd),
@@ -148,6 +155,12 @@ exit:;
 
 FTP::FTP()
 {
+}
+
+FTP::~FTP()
+{
+  close();
+  free(l_cur_dir); l_cur_dir = NULL;
 }
 
 char *FTP::expand_prompt(const char *s)
@@ -204,7 +217,6 @@ int FTP::close()
     free(home_dir); home_dir = NULL;
     free(cur_dir); cur_dir = NULL;
     free(prev_dir); prev_dir = NULL;
-    free(l_cur_dir); l_cur_dir = NULL;
     free(_hostname); _hostname = NULL;
     _connected = false;
   }
@@ -237,6 +249,7 @@ void FTP::execute(int argc, char *argv[])
     err("Ambiguous command %s\n", argv[0]);
   else if (cmd->arg_type == ARG_NONE && argc != 1 ||
            cmd->arg_type == ARG_STRING && argc < 2 ||
+           cmd->arg_type == ARG_MV && argc != 3 ||
            cmd->arg_type == ARG_TYPE && argc != 2) {
     err("Invalid number of arguments\n\n");
     show_help(cmd->name, stderr);
@@ -299,11 +312,11 @@ int FTP::send_receive(LogLevel level, const char *fmt, ...)
   _ctrl->printf("\r\n", ap);
   _ctrl->flush();
 
-  va_start(ap, fmt);
   debug("--> ");
+  va_start(ap, fmt);
   debug(fmt, ap);
-  debug("\n");
   va_end(ap);
+  debug("\n");
 
   if (_ctrl->error(true)) {
     err("Error to send command\n");
@@ -348,7 +361,7 @@ void FTP::print_reply(LogLevel level)
 
 void FTP::print_reply()
 {
-  log("<-- %s\n", _reply);
+  info("<-- %s\n", _reply);
 }
 
 int FTP::read_reply(LogLevel level)
@@ -493,14 +506,15 @@ int FTP::get_file(const char *in_path, const char *out_path, TransferMode mode)
       return -1;
     }
   }
-  FILE *f = fopen(out_path, "w");
-  if (! f) {
-    perror(out_path);
-    return -1;
-  }
 
   if (init_receive(in_path, mode)) {
     print_error();
+    return -1;
+  }
+
+  FILE *f = fopen(out_path, "w");
+  if (! f) {
+    perror(out_path);
     return -1;
   }
   if (mode == IMAGE)
@@ -602,6 +616,23 @@ int FTP::cdup()
   return _code_family == C_COMPLETION ? pwd(false) : -1;
 }
 
+int FTP::chmod(const char *mode, const char *path)
+{
+  if (! _has_chmod_cmd) {
+    err("chmod not supported\n");
+    return -1;
+  }
+  send_receive("SITE CHMOD %s %s", mode, path);
+  if (_code_family == C_COMPLETION) {
+    set_cur_dir(get_cwd());
+    return 0;
+  }
+  if (_code == C_NOT_IMPLEMENTED)
+    _has_chmod_cmd = false;
+  print_error();
+  return -1;
+}
+
 int FTP::help(const char *cmd)
 {
   if (cmd)
@@ -609,13 +640,6 @@ int FTP::help(const char *cmd)
   else
     send_receive("HELP");
   return _code_family == C_COMPLETION ? 0 : -1;
-}
-
-int FTP::lcd(const char *path)
-{
-  free(l_cur_dir);
-  l_cur_dir = strdup(path);
-  return 0;
 }
 
 int FTP::lsdir(const char *cmd, const char *path, FILE *fout)
@@ -649,6 +673,17 @@ int FTP::mkdir(const char *path)
 {
   send_receive("MKD %s", path);
   return _code_family == C_COMPLETION ? 0 : -1;
+}
+
+int FTP::mv(const char *from, const char *to)
+{
+  send_receive("RNFR %s", from);
+  if (_code_family != C_INTERMEDIATE)
+    return print_error(), -1;
+  send_receive("RNTO %s", to);
+  if (_code_family != C_COMPLETION)
+    return print_error(), -1;
+  return 0;
 }
 
 int FTP::open(const char *uri)
@@ -809,6 +844,11 @@ void FTP::do_chdir(int argc, char *argv[])
   chdir(argv[1]);
 }
 
+void FTP::do_chmod(int argc, char *argv[])
+{
+  chmod(argv[1], argv[2]);
+}
+
 void FTP::do_close(int argc, char *argv[])
 {
   close();
@@ -926,6 +966,11 @@ void FTP::do_open(int argc, char *argv[])
   open(argv[1]);
 }
 
+void FTP::do_mv(int argc, char *argv[])
+{
+  mv(argv[1], argv[2]);
+}
+
 void FTP::do_passive(int argc, char *argv[])
 {
   _passive = true;
@@ -976,6 +1021,22 @@ void FTP::do_quit(int argc, char *argv[])
 {
   close();
   exit(0);
+}
+
+void FTP::do_quote(int argc, char *argv[])
+{
+  size_t l = argc;
+  FOR(i, 1, argc)
+    l += strlen(argv[i]);
+  char *buf = new char[l];
+  *buf = '\0';
+  FOR(i, 1, argc) {
+    if (i > 1) strcat(buf, " ");
+    strcat(buf, argv[i]);
+  }
+  send_receive(buf);
+  print_reply(CRIT);
+  delete[] buf;
 }
 
 void FTP::do_rhelp(int argc, char *argv[])
