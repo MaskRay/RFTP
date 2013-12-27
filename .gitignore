@@ -4,3 +4,10 @@ main
 *.o
 *.d
 G*
+*.log
+*.out
+*.pdf
+*.pyg
+*.bib
+*.aux
+*.xml

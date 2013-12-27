@@ -4,6 +4,9 @@
 
 const FTP::Command *CMD_AMBIGUOUS = (FTP::Command *)-1;
 
+constexpr char *FTP::before_connected[];
+constexpr char *FTP::before_logged_in[];
+
 static void help_open(FILE *fout)
 {
   fprintf(fout, "Usage: open host[:port]\n");
@@ -18,15 +21,27 @@ static void help_connect(FILE *fout)
   help_open(fout);
 }
 
+static void help_cdup(FILE *fout)
+{
+  fprintf(fout, "Usage: cdup\n");
+}
+
 static void help_chdir(FILE *fout)
 {
   fprintf(fout, "Usage: cd rdir\n");
-  fprintf(fout, "Change current remote directory to <rdir>\n");
+  fprintf(fout, "Change current remote directory to <rdir>.\n");
+  fprintf(fout, "The previous remote directory is stored as `-'.\n");
 }
 
 static void help_cd(FILE *fout)
 {
   help_chdir(fout);
+}
+
+static void help_ls(FILE *fout)
+{
+  fprintf(fout, "Usage: ls [rdir]\n");
+  fprintf(fout, "List remote files\n");
 }
 
 static void help_mkdir(FILE *fout)
@@ -89,7 +104,7 @@ static void help_lpwd(FILE *fout)
   fprintf(fout, "Usage: lpwd\n");
 }
 
-static void show_help(char *cmd, FILE *f)
+static void show_help(const char *cmd, FILE *f)
 {
 #define HH(cmd) {#cmd, help_##cmd}
   static struct Help {
@@ -98,13 +113,17 @@ static void show_help(char *cmd, FILE *f)
   } helps[] = {
     HH(cat),
     HH(cd),
+    HH(cdup),
     HH(chdir),
+    HH(connect),
     HH(get),
     HH(help),
     HH(lcd),
     HH(lpwd),
+    HH(ls),
     HH(md),
     HH(mkdir),
+    HH(open),
     HH(put),
     HH(rd),
     HH(rmdir),
@@ -120,8 +139,7 @@ static void show_help(char *cmd, FILE *f)
 exit:;
 }
 
-FTP::FTP() // : _ctrl(NULL), _data(NULL), _logged_in(false), _in_transfer(false), _interrupted(false),
-  //_reply_timeout(1000)
+FTP::FTP()
 {
 }
 
@@ -134,13 +152,10 @@ char *FTP::expand_prompt(const char *s)
       buf[i++] = *s;
     else {
       switch (*++s) {
-      case 'u':
-        strncpy(buf+i, "dummy", MAX_REPLY-1-i);
-        break;
-      case 'p':
-        if (cur_dir)
-          strncpy(buf+i, cur_dir, MAX_REPLY-1-i);
-        break;
+      case 'h': if (_hostname) strncpy(buf+i, _hostname, MAX_REPLY-1-i); break;
+      case 'p': if (cur_dir) strncpy(buf+i, cur_dir, MAX_REPLY-1-i); break;
+      case 'l': if (l_cur_dir) strncpy(buf+i, l_cur_dir, MAX_REPLY-1-i); break;
+
       case '0': strncpy(buf+i, "\x1b[0m", MAX_REPLY-1-i); break;
       case 'R': strncpy(buf+i, "\x1b[31;1m", MAX_REPLY-1-i); break;
       case 'G': strncpy(buf+i, "\x1b[32;1m", MAX_REPLY-1-i); break;
@@ -177,16 +192,13 @@ int FTP::close()
     _logged_in = false;
     _ctrl->printf("QUIT\r\n");
     _ctrl->flush();
-    delete _ctrl;
-    _ctrl = NULL;
-    delete _data;
-    _data = NULL;
-    free(home_dir);
-    home_dir = NULL;
-    free(cur_dir);
-    cur_dir = NULL;
-    free(prev_dir);
-    prev_dir = NULL;
+    delete _ctrl; _ctrl = NULL;
+    delete _data; _data = NULL;
+    free(home_dir); home_dir = NULL;
+    free(cur_dir); cur_dir = NULL;
+    free(prev_dir); prev_dir = NULL;
+    free(l_cur_dir); l_cur_dir = NULL;
+    free(_hostname); _hostname = NULL;
     _connected = false;
   }
   return 0;
@@ -219,15 +231,28 @@ void FTP::execute(int argc, char *argv[])
   else if (cmd->arg_type == ARG_NONE && argc != 1 ||
            cmd->arg_type == ARG_STRING && argc < 2 ||
            cmd->arg_type == ARG_TYPE && argc != 2) {
-    err("Invalid number of arguments\n");
-    show_help(argv[0], stderr);
-  }
-  else if (! connected() && cmd->fn != &FTP::do_open && cmd->fn != &FTP::do_help)
-    err("Not connected\n");
-  else if (! logged_in() && cmd->fn != &FTP::do_open && cmd->fn != &FTP::do_help && cmd->fn != &FTP::do_login)
+    err("Invalid number of arguments\n\n");
+    show_help(cmd->name, stderr);
+  } else {
+    bool flag = false;
+    if (! connected()) goto not_connected;
+    if (! logged_in()) goto not_logged_in;
+    flag = true;
+not_logged_in:
+    for (int i = 0; before_logged_in[i]; i++)
+      if (! strcmp(before_logged_in[i], cmd->name))
+        flag = true;
+not_connected:
+    for (int i = 0; before_connected[i]; i++)
+      if (! strcmp(before_connected[i], cmd->name))
+        flag = true;
+    if (flag)
+      (this->*(cmd->fn))(argc, argv);
+    else if (! connected())
+      err("Not connected\n");
+    else
     err("Not logged in\n");
-  else
-    (this->*(cmd->fn))(argc, argv);
+  }
 
   gv_interrupted = false;
   gv_in_transfer = false;
@@ -250,7 +275,6 @@ void FTP::loop()
       execute(argc, argv);
     free(line);
   }
-  //quit(vector<string>());
 }
 
 template <typename... Ts>
@@ -261,11 +285,6 @@ int FTP::send_receive(const char *fmt, Ts... ts)
 
 int FTP::send_receive(LogLevel level, const char *fmt, ...)
 {
-  if (! (_ctrl && _ctrl->_connected)) {
-    err("No control connection\n");
-    return -1;
-  }
-
   va_list ap;
   va_start(ap, fmt);
   _ctrl->vprintf(fmt, ap);
@@ -637,6 +656,7 @@ int FTP::open(const char *uri)
   struct sockaddr_storage sa;
   memset(&sa, 0, sizeof sa);
   memcpy(&sa, host._addr->ai_addr, sizeof(sockaddr));
+  _hostname = strdup(host._addr->ai_canonname);
   _ctrl = new Sock(host._addr->ai_family);
   if (! _ctrl->connect(&sa))
     return 1;

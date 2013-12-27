@@ -17,6 +17,7 @@ enum Code {C_NOT_IMPLEMENTED = 502};
 class FTP : public Connection {
 public:
   FTP();
+  ~FTP() { close(); }
   void loop();
   void execute(int argc, char *argv[]);
   char *prompt();
@@ -53,7 +54,7 @@ public:
     CM("active",  active,  ARG_NONE),
     CM("cat",     cat,     ARG_STRING),
     CM("cd",      chdir,   ARG_STRING),
-    CM("cdup",    cdup,    ARG_STRING),
+    CM("cdup",    cdup,    ARG_NONE),
     CM("chdir",   chdir,   ARG_STRING),
     CM("connect", open,    ARG_STRING),
     CM("close",   close,   ARG_NONE),
@@ -80,6 +81,9 @@ public:
     CM("?",       help,    ARG_OPT_STRING),
     {NULL,        NULL,    ARG_NONE},
   };
+
+  static constexpr char *before_connected[] = { "open", "help", "?", NULL };
+  static constexpr char *before_logged_in[] = { "login", NULL };
 
   int cat(const char *path);
   int chdir(const char *path);
@@ -127,6 +131,7 @@ protected:
   void print_reply();
   void print_reply(LogLevel level);
 
+  char *_hostname = NULL;
   char *home_dir = NULL, *cur_dir = NULL, *prev_dir = NULL;
   char *l_cur_dir = getcwd(NULL, 0);
 
