@@ -27,6 +27,7 @@ public:
   CC(cdup);
   CC(chdir);
   CC(close);
+  CC(debug);
   CC(get);
   CC(help);
   CC(lcd);
@@ -50,7 +51,7 @@ public:
     Arg arg_type;
   };
 
-  Command cmds[29] = {
+  Command cmds[30] = {
     CM("active",  active,  ARG_NONE),
     CM("cat",     cat,     ARG_STRING),
     CM("cd",      chdir,   ARG_STRING),
@@ -58,6 +59,7 @@ public:
     CM("chdir",   chdir,   ARG_STRING),
     CM("connect", open,    ARG_STRING),
     CM("close",   close,   ARG_NONE),
+    CM("debug",   debug,   ARG_OPT_STRING),
     CM("dir",     list,    ARG_NONE),
     CM("get",     get,     ARG_STRING),
     CM("help",    help,    ARG_OPT_STRING),
@@ -82,7 +84,7 @@ public:
     {NULL,        NULL,    ARG_NONE},
   };
 
-  static constexpr char *before_connected[] = { "open", "help", "?", NULL };
+  static constexpr char *before_connected[] = { "debug", "lcd", "lpwd", "open", "help", "?", NULL };
   static constexpr char *before_logged_in[] = { "login", NULL };
 
   int cat(const char *path);

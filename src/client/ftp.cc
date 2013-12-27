@@ -38,6 +38,12 @@ static void help_cd(FILE *fout)
   help_chdir(fout);
 }
 
+static void help_debug(FILE *fout)
+{
+  fprintf(fout, "Usage: debug [level]\n");
+  fprintf(fout, "<level>: [d]ebug, [i]nfo, [w]arning, [e]rr, [c]rit\n");
+}
+
 static void help_ls(FILE *fout)
 {
   fprintf(fout, "Usage: ls [rdir]\n");
@@ -116,6 +122,7 @@ static void show_help(const char *cmd, FILE *f)
     HH(cdup),
     HH(chdir),
     HH(connect),
+    HH(debug),
     HH(get),
     HH(help),
     HH(lcd),
@@ -803,15 +810,30 @@ void FTP::do_close(int argc, char *argv[])
   close();
 }
 
+void FTP::do_debug(int argc, char *argv[])
+{
+  const char *lvl = argc == 1 ? "debug" : argv[1];
+  switch (lvl[0]) {
+  case 'd': gv_log_level = DEBUG; break;
+  case 'i': gv_log_level = INFO; break;
+  case 'w': gv_log_level = WARNING; break;
+  case 'e': gv_log_level = ERR; break;
+  case 'c': gv_log_level = CRIT; break;
+  }
+}
+
 void FTP::do_lcd(int argc, char *argv[])
 {
   if (::chdir(argv[1]) == -1)
     perror("");
   else {
-    info("local cwd=%s\n", argv[1]);
     if (l_cur_dir)
       free(l_cur_dir);
-    l_cur_dir = strdup(argv[1]);
+    l_cur_dir = getcwd(NULL, 0);
+    if (! l_cur_dir)
+      perror("");
+    else
+      info("local cwd=%s\n", l_cur_dir);
   }
 }
 
