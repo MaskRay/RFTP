@@ -126,7 +126,7 @@ void reply_alrm_handler(int)
 
 void FTP::print_error()
 {
-  if (_code_family >= C_TRANSIENT)
+  if (_code_family >= C_TRANSIENT && gv_log_level < DEBUG)
     print_reply();
 }
 
@@ -342,12 +342,15 @@ int FTP::login()
     user = strdup("anonymous");
   }
   send_receive(CRIT, "USER %s", user);
-  free(user);
 
   if (_code_family == C_INTERMEDIATE) {
-    char *pass = getpass("Password: ");
+    const char *pass = getpass("Password: ");
+    if (! strcmp(pass, "") && ! strcmp(user, "anonymous"))
+      pass = "anonymous@";
     send_receive(CRIT, "PASS %s", pass);
   }
+
+  free(user);
 
   if (_code_family == C_COMPLETION) {
     _logged_in = true;
@@ -385,6 +388,13 @@ int FTP::help(const char *cmd)
   else
     send_receive("HELP");
   return _code_family == C_COMPLETION ? 0 : -1;
+}
+
+int FTP::lcd(const char *path)
+{
+  free(l_cur_dir);
+  l_cur_dir = strdup(path);
+  return 0;
 }
 
 int FTP::lsdir(const char *cmd, const char *path, FILE *fout)
@@ -512,7 +522,7 @@ int FTP::put_file(const char *in_path, const char *out_path, TransferMode mode)
 int FTP::pwd(bool log)
 {
   send_receive("PWD");
-  if (log && gv_log_level < DEBUG)
+  if (log)
     print_reply();
 }
 

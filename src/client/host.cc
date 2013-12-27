@@ -2,8 +2,25 @@
 
 Host::Host(const char *uri)
 {
-  // TODO
+  char *p;
+  _port = -1;
   _hostname = strdup(uri);
+  if (*_hostname == '[') {
+    if ((p = strrchr(_hostname, ':')) && p > _hostname && p[-1] == ']') {
+      *p = '\0';
+      _port = atoi(p+1);
+    }
+    p = strrchr(_hostname, ']');
+    if (p) {
+      memcpy(_hostname, _hostname + 1, p - _hostname - 1);
+      p[-1] = '\0';
+    }
+  } else {
+    if ((p = strrchr(_hostname, ':')) != NULL) {
+      *p = '\0';
+      _port = atoi(p+1);
+    }
+  }
 }
 
 Host::~Host()
@@ -20,7 +37,7 @@ bool Host::lookup()
     _port = 21;
     service = strdup("21");
   } else
-    asprintf(&service, "%d", ntohs(_port));
+    asprintf(&service, "%d", _port);
 
   struct addrinfo hints;
   memset(&hints, 0, sizeof hints);

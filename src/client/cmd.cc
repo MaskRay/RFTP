@@ -136,6 +136,32 @@ void CMD::close(vector<string> args)
   ftp.close();
 }
 
+void CMD::lcd(vector<string> args)
+{
+  min_args(args, 1);
+  max_args(args, 1);
+  if (::chdir(args[0].c_str()) == -1)
+    perror("");
+  else {
+    info("local cwd=%s\n", args[0].c_str());
+    if (l_cur_dir)
+      free(l_cur_dir);
+    l_cur_dir = strdup(args[0].c_str());
+  }
+}
+
+void CMD::lpwd(vector<string> args)
+{
+  max_args(args, 0);
+  char *p = getcwd(NULL, 0);
+  if (! p)
+    perror("");
+  else {
+    info("local cwd=%s\n", p);
+    free(p);
+  }
+}
+
 void CMD::mkdir(vector<string> args)
 {
   min_args(args, 1);

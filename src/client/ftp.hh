@@ -20,6 +20,7 @@ public:
   int cdup();
   int get_file(const char *in_path, const char *out_path, TransferMode mode);
   int help(const char *cmd);
+  int lcd(const char *path);
   int lsdir(const char *cmd, const char *path, FILE *fout);
   int mkdir(const char *path);
   int open(const char *host);
@@ -60,6 +61,7 @@ protected:
   void print_reply(LogLevel level);
 
   char *home_dir = NULL, *cur_dir = NULL, *prev_dir = NULL;
+  char *l_cur_dir = getcwd(NULL, 0);
 
   bool _logged_in = false;
   int _code = 0, _code_family = 0;

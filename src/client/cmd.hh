@@ -20,8 +20,10 @@ public:
   CC(close);
   CC(get);
   CC(help);
+  CC(lcd);
   CC(login);
   CC(list);
+  CC(lpwd);
   CC(mkdir);
   CC(open);
   CC(passive);
@@ -40,7 +42,7 @@ public:
 
 #define CM(name, fn) {#name, &CMD::fn}
 #define CN(name) CM(name, name)
-  Command cmds[26] = {
+  Command cmds[28] = {
     CN(active),
     CN(cat),
     CM(cd, chdir),
@@ -50,8 +52,10 @@ public:
     CM(dir, list),
     CN(get),
     CN(help),
+    CN(lcd),
     CN(login),
     CN(list),
+    CN(lpwd),
     CM(ls, list),
     CM(md, mkdir),
     CN(mkdir),
@@ -77,6 +81,8 @@ protected:
   void require_logged_in();
   void require_connected();
   const Command *find_cmd(const char *cmd);
+
+  char *l_cur_dir = getcwd(NULL, 0);
 };
 
 void exit_all();
