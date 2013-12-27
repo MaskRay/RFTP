@@ -2,6 +2,71 @@
 #include "signal.hh"
 #include "host.hh"
 
+const FTP::Command *CMD_AMBIGUOUS = (FTP::Command *)-1;
+
+static void help_get(FILE *fout)
+{
+  fprintf(fout, "Usage: get [options] rfile\n");
+  fprintf(fout, "Options:\n");
+  fprintf(fout, "  -a, --ascii     use ascii mode (default: binary)\n");
+  fprintf(fout, "  -o, --output    local file name (default: basename of rfile)\n");
+  fprintf(fout, "  -h, --help      help\n");
+}
+
+static void help_put(FILE *fout)
+{
+  fprintf(fout, "Usage: put [options] lfile\n");
+  fprintf(fout, "Options:\n");
+  fprintf(fout, "  -a, --ascii     use ascii mode (default: binary)\n");
+  fprintf(fout, "  -o, --output    remote file name (default: basename of lfile)\n");
+  fprintf(fout, "  -h, --help      help\n");
+}
+
+static void help_help(FILE *fout)
+{
+  fprintf(fout, "Usage: help [command]\n");
+}
+
+static void help_cat(FILE *fout)
+{
+  fprintf(fout, "Usage: cat rfile\n");
+}
+
+static void help_lcd(FILE *fout)
+{
+  fprintf(fout, "Usage: cat rfile\n");
+}
+
+static void help_lpwd(FILE *fout)
+{
+  fprintf(fout, "Usage: lpwd\n");
+}
+
+static void show_help(char *cmd, FILE *f)
+{
+#define HH(cmd) {#cmd, help_##cmd}
+  static struct Help {
+    const char *name;
+    void (*fn)(FILE *);
+  } helps[] = {
+    HH(cat),
+    HH(get),
+    HH(help),
+    HH(lcd),
+    HH(lpwd),
+    HH(put),
+    {NULL,  NULL},
+  };
+#undef HH
+  for (int i = 0; helps[i].name; i++)
+    if (! strcmp(cmd, helps[i].name)) {
+      helps[i].fn(f);
+      goto exit;
+    }
+  fprintf(f, "Command not found\n");
+exit:;
+}
+
 FTP::FTP() // : _ctrl(NULL), _data(NULL), _logged_in(false), _in_transfer(false), _interrupted(false),
   //_reply_timeout(1000)
 {
@@ -37,6 +102,12 @@ char *FTP::expand_prompt(const char *s)
   return buf;
 }
 
+char *FTP::prompt()
+{
+  const char *s = expand_prompt(connected() ? (logged_in() ? gv_PS3 : gv_PS2) : gv_PS1);
+  return readline(s);
+}
+
 bool FTP::connected()
 {
   return _ctrl && _ctrl->_connected;
@@ -66,6 +137,67 @@ int FTP::close()
     _connected = false;
   }
   return 0;
+}
+
+const FTP::Command *FTP::find_cmd(const char *cmd)
+{
+  size_t len = strlen(cmd);
+  Command *r = NULL;
+  for (int i = 0; cmds[i].name; i++)
+    if (! strncmp(cmds[i].name, cmd, len)) {
+      if (strlen(cmds[i].name) == len)
+        return &cmds[i];
+      if (r)
+        return CMD_AMBIGUOUS;
+      r = &cmds[i];
+    }
+  return r;
+}
+
+void FTP::execute(int argc, char *argv[])
+{
+  gv_interrupted = false;
+
+  auto cmd = find_cmd(argv[0]);
+  if (cmd == NULL)
+    err("Unknown command %s\n", argv[0]);
+  else if (cmd == CMD_AMBIGUOUS)
+    err("Ambiguous command %s\n", argv[0]);
+  else if (cmd->arg_type == ARG_NONE && argc != 1 ||
+           cmd->arg_type == ARG_STRING && argc < 2 ||
+           cmd->arg_type == ARG_TYPE && argc != 2) {
+    err("Invalid number of arguments\n");
+    show_help(argv[0], stderr);
+  }
+  else if (! connected() && cmd->fn != &FTP::do_open && cmd->fn != &FTP::do_help)
+    err("Not connected\n");
+  else if (! logged_in() && cmd->fn != &FTP::do_open && cmd->fn != &FTP::do_help && cmd->fn != &FTP::do_login)
+    err("Not logged in\n");
+  else
+    (this->*(cmd->fn))(argc, argv);
+
+  gv_interrupted = false;
+  gv_in_transfer = false;
+}
+
+void FTP::loop()
+{
+  if (sigsetjmp(gv_jmpbuf, 1))
+    puts("Command loop restarted");
+  gv_jmpbuf_set = true;
+  char *argv[MAX_REPLY];
+  int argc;
+
+  while (! gv_sighup_received) {
+    char *line = prompt();
+    if (! line) break;
+    if (*line)
+      add_history(line);
+    if (Util::parse_cmd(line, argc, argv))
+      execute(argc, argv);
+    free(line);
+  }
+  //quit(vector<string>());
 }
 
 template <typename... Ts>
@@ -561,4 +693,197 @@ int FTP::type(TransferMode mode)
     return _code_family == C_COMPLETION ? (_data_type = mode, 0) : -1;
   }
   return 0;
+}
+
+// commands
+
+void FTP::do_active(int argc, char *argv[])
+{
+  _passive = false;
+}
+
+void FTP::do_cat(int argc, char *argv[])
+{
+  cat(argv[1]);
+}
+
+void FTP::do_cdup(int argc, char *argv[])
+{
+  chdir("..");
+}
+
+void FTP::do_chdir(int argc, char *argv[])
+{
+  chdir(argv[1]);
+}
+
+void FTP::do_close(int argc, char *argv[])
+{
+  close();
+}
+
+void FTP::do_lcd(int argc, char *argv[])
+{
+  if (::chdir(argv[1]) == -1)
+    perror("");
+  else {
+    info("local cwd=%s\n", argv[1]);
+    if (l_cur_dir)
+      free(l_cur_dir);
+    l_cur_dir = strdup(argv[1]);
+  }
+}
+
+void FTP::do_lpwd(int argc, char *argv[])
+{
+  char *p = getcwd(NULL, 0);
+  if (! p)
+    perror("");
+  else {
+    info("local cwd=%s\n", p);
+    free(p);
+  }
+}
+
+void FTP::do_mkdir(int argc, char *argv[])
+{
+  mkdir(argv[1]);
+}
+
+void FTP::do_get(int argc, char *argv[])
+{
+  struct option longopts[] = {
+    {"ascii", no_argument, 0, 'a'},
+    {"output", required_argument, 0, 'o'},
+    {0, 0, 0, 0},
+  };
+
+  char *out_path = NULL;
+  TransferMode mode = IMAGE;
+  int c;
+  optind = 0;
+  while ((c = getopt_long(argc, argv, "ao:h", longopts, NULL)) != -1) {
+    switch (c) {
+    case 'a':
+      mode = ASCII;
+      break;
+    case 'o':
+      out_path = strdup(optarg);
+      break;
+    case 'h':
+      help_get(stdout);
+      break;
+    case '?':
+      help_get(stderr);
+      break;
+    }
+  }
+  if (optind >= argc) {
+    err("Invalid number of arguments\n");
+    help_get(stderr);
+    return;
+  }
+
+  char *in_path = argv[optind];
+  if (! out_path)
+    out_path = strdup(in_path);
+  get_file(in_path, out_path, mode);
+  free(out_path);
+}
+
+void FTP::do_help(int argc, char *argv[])
+{
+  if (argc > 1)
+    show_help(argv[1], stdout);
+ else {
+    puts("All commands:");
+    for (int i = 0; cmds[i].name; i++)
+      printf("  %s\n", cmds[i].name);
+  }
+}
+
+void FTP::do_login(int argc, char *argv[])
+{
+  login();
+}
+
+void FTP::do_list(int argc, char *argv[])
+{
+  lsdir("LIST", argc == 1 ? NULL : argv[1], stdout);
+}
+
+void FTP::do_open(int argc, char *argv[])
+{
+  open(argv[1]);
+}
+
+void FTP::do_passive(int argc, char *argv[])
+{
+  _passive = true;
+}
+
+void FTP::do_put(int argc, char *argv[])
+{
+  struct option longopts[] = {
+    {"ascii", no_argument, 0, 'a'},
+    {"output", required_argument, 0, 'o'},
+    {0, 0, 0, 0},
+  };
+
+  char *out_path = NULL;
+  TransferMode mode = IMAGE;
+  int c;
+  optind = 0;
+  while ((c = getopt_long(argc, argv, "ao:", longopts, NULL)) != -1) {
+    switch (c) {
+    case 'a':
+      mode = ASCII;
+      break;
+    case 'o':
+      out_path = strdup(optarg);
+      break;
+    }
+  }
+
+  if (optind >= argc) {
+    err("Invalid number of arguments\n");
+    return;
+  }
+
+  char *in_path = argv[optind];
+  if (! out_path)
+    out_path = strdup(in_path);
+  put_file(in_path, out_path, mode);
+  free(out_path);
+}
+
+void FTP::do_pwd(int argc, char *argv[])
+{
+  pwd(true);
+}
+
+void FTP::do_quit(int argc, char *argv[])
+{
+  close();
+  exit(0);
+}
+
+void FTP::do_rhelp(int argc, char *argv[])
+{
+  help(argc == 1 ? NULL : argv[1]);
+}
+
+void FTP::do_rmdir(int argc, char *argv[])
+{
+  rmdir(argv[1]);
+}
+
+void FTP::do_site(int argc, char *argv[])
+{
+  site(argv[1]);
+}
+
+void FTP::do_size(int argc, char *argv[])
+{
+  size(argv[1]);
 }

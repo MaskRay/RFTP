@@ -4,16 +4,82 @@
 #include "../log.hh"
 #include "../sock.hh"
 #include "../util.hh"
+#include "gv.hh"
 
-#define C(name) int name(int argc, char **argv)
+#define CC(name) void do_##name(int argc, char *argv[])
+#define CM(name, fn, arg) {name, &FTP::do_##fn, arg}
 
 enum CodeFamily {C_NONE, C_PRELIMINARY, C_COMPLETION, C_INTERMEDIATE, C_TRANSIENT, C_PERMANENT};
+enum Arg { ARG_NONE, ARG_STRING, ARG_OPT_STRING, ARG_TYPE };
 
 enum Code {C_NOT_IMPLEMENTED = 502};
 
 class FTP : public Connection {
 public:
   FTP();
+  void loop();
+  void execute(int argc, char *argv[]);
+  char *prompt();
+
+  CC(active);
+  CC(cat);
+  CC(cdup);
+  CC(chdir);
+  CC(close);
+  CC(get);
+  CC(help);
+  CC(lcd);
+  CC(login);
+  CC(list);
+  CC(lpwd);
+  CC(mkdir);
+  CC(open);
+  CC(passive);
+  CC(put);
+  CC(pwd);
+  CC(quit);
+  CC(rhelp);
+  CC(rmdir);
+  CC(site);
+  CC(size);
+
+  struct Command {
+    const char *name;
+    void (FTP::*fn)(int argc, char *argv[]);
+    Arg arg_type;
+  };
+
+  Command cmds[29] = {
+    CM("active",  active,  ARG_NONE),
+    CM("cat",     cat,     ARG_STRING),
+    CM("cd",      chdir,   ARG_STRING),
+    CM("cdup",    cdup,    ARG_STRING),
+    CM("chdir",   chdir,   ARG_STRING),
+    CM("connect", open,    ARG_STRING),
+    CM("close",   close,   ARG_NONE),
+    CM("dir",     list,    ARG_NONE),
+    CM("get",     get,     ARG_STRING),
+    CM("help",    help,    ARG_OPT_STRING),
+    CM("lcd",     lcd,     ARG_STRING),
+    CM("login",   login,   ARG_NONE),
+    CM("list",    list,    ARG_OPT_STRING),
+    CM("lpwd",    lpwd,    ARG_NONE),
+    CM("ls",      list,    ARG_OPT_STRING),
+    CM("md",      mkdir,   ARG_STRING),
+    CM("mkdir",   mkdir,   ARG_STRING),
+    CM("open",    open,    ARG_STRING),
+    CM("passive", passive, ARG_NONE),
+    CM("put",     put,     ARG_STRING),
+    CM("pwd",     pwd,     ARG_NONE),
+    CM("quit",    quit,    ARG_NONE),
+    CM("rhelp",   rhelp,   ARG_OPT_STRING),
+    CM("rd",      rmdir,   ARG_STRING),
+    CM("rmdir",   rmdir,   ARG_STRING),
+    CM("site",    site,    ARG_STRING),
+    CM("size",    size,    ARG_STRING),
+    CM("?",       help,    ARG_OPT_STRING),
+    {NULL,        NULL,    ARG_NONE},
+  };
 
   int cat(const char *path);
   int chdir(const char *path);
@@ -43,6 +109,7 @@ public:
   bool _passive = true;
 
 protected:
+  const Command *find_cmd(const char *cmd);
   int gets();
   int init_data();
   int init_receive(const char *in_path, TransferMode mode);
@@ -70,3 +137,6 @@ protected:
   bool _has_size_cmd = true;
   bool _has_pasv_cmd = true;
 };
+
+#undef CC
+#undef CM

@@ -1,5 +1,6 @@
 #include <netinet/in.h>
 #include "../log.hh"
+#include "../util.hh"
 #include "session.hh"
 
 Session::Session()
@@ -85,23 +86,15 @@ void Session::send_ok(int code)
 void Session::loop()
 {
   char buf[BUF_SIZE];
-  auto argv = new char *[2];
+  char *argv[MAX_REPLY];
   send(220, "Ready");
   for(;;) {
     int len = gets();
     if (_ctrl->eof())
       break;
     debug("<-- %s\n", _reply);
-    int argc = 0;
-    char *q;
-    if (*_reply) {
-      argv[argc++] = _reply;
-      q = strchr(_reply, ' ');
-      if (q) {
-        *q = '\0';
-        argv[argc++] = q+1;
-      }
-    }
+    int argc;
+    Util::parse_cmd(_reply, argc, argv);
 
     Command *cmd = NULL;
     void (Session::*fn)(int argc, char *argv[]) = NULL;
@@ -121,7 +114,7 @@ void Session::loop()
         }
         break;
       case ARG_STRING:
-        if (argc != 2) {
+        if (argc < 2) {
           send_501();
           exe = false;
         }
@@ -144,7 +137,6 @@ void Session::loop()
     } else
       send_500();
   }
-  delete[] argv;
 }
 
 bool Session::init_data(TransferMode type)

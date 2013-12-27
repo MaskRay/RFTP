@@ -1,7 +1,7 @@
 #include <getopt.h>
 #include <stdio.h>
 #include <unistd.h>
-#include "cmd.hh"
+#include "ftp.hh"
 #include "completion.hh"
 #include "../log.hh"
 
@@ -53,9 +53,9 @@ int main(int argc, char *argv[])
 
   init_readline();
 
-  CMD cmd;
+  FTP ftp;
   if (optind < argc)
-    cmd.ftp.open(argv[optind]);
-  cmd.loop();
+    ftp.open(argv[optind]);
+  ftp.loop();
   return 0;
 }

@@ -33,4 +33,15 @@ char *prompt(const char *fmt, ...)
   va_end(ap);
   return r;
 }
+
+bool parse_cmd(char *line, int &argc, char *argv[])
+{
+  argc = 0;
+  for (char *p = line; ; p = NULL) {
+    char *q = strtok(p, " \t");
+    if (! q) break;
+    argv[argc++] = q;
+  }
+  return argc > 0;
+}
 };

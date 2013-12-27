@@ -1,6 +1,6 @@
-#include "cmd.hh"
+#include "ftp.hh"
 
-static CMD cmd;
+static FTP ftp;
 
 static char *command_completion_function(const char *text, int state)
 {
@@ -10,7 +10,7 @@ static char *command_completion_function(const char *text, int state)
     len = strlen(text);
   }
   const char *e;
-  while ((e = cmd.cmds[idx].name) != NULL) {
+  while ((e = ftp.cmds[idx].name) != NULL) {
     idx++;
     if (! strncasecmp(e, text, len))
       return strdup(e);
