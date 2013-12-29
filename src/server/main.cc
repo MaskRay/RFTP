@@ -4,7 +4,7 @@
 
 void help(FILE *fout, const char *argv0)
 {
-  fprintf(fout, "FTP client.\n");
+  fprintf(fout, "FTP server.\n");
   fprintf(fout, "\n");
   fprintf(fout, "Usage: %s [options] root\n", argv0);
   fprintf(fout, "Options:\n");
