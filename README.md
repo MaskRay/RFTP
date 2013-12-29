@@ -13,11 +13,8 @@
 ```
 % ~/Dev/RFTP/build/ftp -d '[::1]'
 <-- 220 ProFTPD 1.3.4d Server (ProFTPD Default Server) [::1]
-rftp@::1 >>= ls
-Not logged in
-rftp@::1 >>= %                                                                                                                                                ╭─ray @ lap >>= /tmp
-╰─% ~/Dev/RFTP/build/ftp -d '[::1]'
-<-- 220 ProFTPD 1.3.4d Server (ProFTPD Default Server) [::1]
+rftp@::1 >>= ?
+All commands: active, cat, cd, cdup, chdir, chmod, connect, close, debug, dir, get, help, lcd, login, list, lpwd, ls, md, mkdir, mv, open, passive, put, pwd, quit, quote, rhelp, rd, rmdir, site, size, ?
 rftp@::1 >>= login
 Login (anonymous):
 --> USER anonymous
@@ -53,6 +50,23 @@ Transfer complete, file size 0
 ```
 
 ### Server
+
+```
+% build/ftpd
+FTP server.
+
+Usage: build/ftpd [options] root
+Options:
+  -6, --ipv6      ipv6 (default is ipv4)
+  -d, --debug
+  -n, --nodaemon  Do not background the process or disassociate it from the controlling terminal
+  -p, --port      listening port
+  -q, --quiet
+  -u, --user      Change user identity
+  -h, --help      display this help and exit
+
+Report bugs to i@maskray.me
+```
 
 ## Test
 
